@@ -1,5 +1,5 @@
 {
-  description = "A very basic flake";
+  description = "avocado";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
@@ -24,7 +24,7 @@
         zig = pkgs.zigpkgs."0.16.0";
         zls = pkgs.zls_0_16;
 
-        zonNixFile = ./build.zig.zon.nix;
+        zonNixFile = ./extension/build.zig.zon.nix;
         zigDeps = import zonNixFile {
           inherit (pkgs)
             linkFarm
@@ -37,9 +37,9 @@
       in
       {
         packages.default = pkgs.stdenv.mkDerivation {
-          pname = "godot-zig";
+          pname = "avocado";
           version = "0.1.0";
-          src = ./.;
+          src = ./extension;
 
           preBuild = ''
             export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-cache"
