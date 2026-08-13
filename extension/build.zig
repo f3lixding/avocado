@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const dev_build = b.option(bool, "dev-build", "used for zig build in dev shell");
 
     const godot_zig = b.dependency("godot_zig", .{
         .target = target,
@@ -21,4 +22,14 @@ pub fn build(b: *std.Build) void {
         .root_module = module,
     });
     lib.root_module.addImport("godot_zig", godot_zig.module("godot_zig"));
+
+    if (dev_build) |d| {
+        if (d) {
+            const install = b.addInstallArtifact(lib, .{
+                .dest_dir = .{ .override = .{ .custom = "../../bin" } },
+            });
+
+            b.getInstallStep().dependOn(&install.step);
+        }
+    }
 }

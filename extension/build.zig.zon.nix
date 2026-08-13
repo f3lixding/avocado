@@ -29,11 +29,11 @@ let
 in
 linkFarm name [
   {
-    name = "godot_zig-0.0.0-5_wrXhzIQgCOpKAYTltdrqnF6gmxRKGSmRYUB-TRl7EC.tar.gz";
+    name = "godot_zig-0.0.0-5_wrXgvVQgDoNVBNj6IlsOYNfbgbMO4cnTP3d_7qi6Sv.tar.gz";
     path = fetchZig {
       name = "godot_zig";
-      url = "git+https://github.com/f3lixding/godot-zig?ref=main#5c2bfae82c0d1c10b57d24d4f39c8ea4d5beb141";
-      hash = "sha256-o2HlayYrrvwVdIfFsrLpZSBf19u2Al7KRR0YMH8/tCw=";
+      url = "git+https://github.com/f3lixding/godot-zig?ref=main#2b8f15a592a973298cd7bab0d8b06ec33412dda3";
+      hash = "sha256-jMC+5Nm/frKE0zDnOchX5GIATFay2ygvOBJGpdcuamw=";
     };
   }
 ]
