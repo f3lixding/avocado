@@ -1,18 +1,25 @@
-//! By convention, root.zig is the root source file when making a package.
-const std = @import("std");
-const Io = std.Io;
+const godot = @import("godot_zig");
 
-/// This is a documentation comment to explain the `printAnotherMessage` function below.
-///
-/// Accepting an `Io.Writer` instance is a handy way to write reusable code.
-pub fn printAnotherMessage(writer: *Io.Writer) Io.Writer.Error!void {
-    try writer.print("Run `zig build test` to run the tests.\n", .{});
+fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
+    if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
+    // Register native classes here.
 }
 
-pub fn add(a: i32, b: i32) i32 {
-    return a + b;
+fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
+    _ = level;
 }
 
-test "basic add functionality" {
-    try std.testing.expect(add(3, 7) == 10);
+pub export fn avocado_extenion_init(
+    get_proc_address: godot.c.GDExtensionInterfaceGetProcAddress,
+    library: godot.c.GDExtensionClassLibraryPtr,
+    initialization: [*c]godot.c.GDExtensionInitialization,
+) godot.c.GDExtensionBool {
+    return godot.extension.entry(
+        get_proc_address,
+        library,
+        initialization,
+        .scene,
+        initialize,
+        deinitialize,
+    );
 }
