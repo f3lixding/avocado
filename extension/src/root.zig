@@ -6,7 +6,10 @@ const MeshInstance3D = godot.generated.classes.MeshInstance3D;
 const Engine = godot.generated.classes.Engine;
 const Vector3 = godot.Vector3;
 
-const Particle = struct {};
+const physics_lattice = @import("util/physics_lattice.zig");
+const Particle = physics_lattice.Particle;
+const Spring = physics_lattice.Spring;
+const RenderVertexBinding = physics_lattice.RenderVertexBinding;
 
 const QuantizedVertexKey = struct {
     x: i64,
@@ -22,7 +25,7 @@ const QuantizedVertexKey = struct {
     }
 };
 
-fn logReady(message: [*:0]const u8) void {
+fn log(message: [*:0]const u8) void {
     godot.log.errMsg("avocado", message, .{
         .function = @src().fn_name,
         .file = @src().file,
@@ -36,13 +39,28 @@ const Avocado = struct {
     impulse_timer: f64,
     alloc: std.mem.Allocator = std.heap.c_allocator,
 
-    rest_vertices: []Vector3 = &.{},
-    cur_vertices: []Vector3 = &.{},
-    indices: []i32 = &.{},
-    particles: []Particle = &.{},
+    rest_vertices: std.ArrayList(Vector3) = .empty,
+    cur_vertices: std.ArrayList(Vector3) = .empty,
+    indices: std.ArrayList(i32) = .empty,
+    particles: std.ArrayList(Particle) = .empty,
+    springs: std.ArrayList(Spring) = .empty,
+    vertex_bindings: std.ArrayList(RenderVertexBinding) = .empty,
+    lattice_min: Vector3 = .{},
+    lattice_max: Vector3 = .{},
+    lattice_dims: [3]usize = .{ 0, 0, 0 },
 
     pub fn init(object: godot.c.GDExtensionObjectPtr) Avocado {
         return .{ .object = object, .impulse_timer = 0.0 };
+    }
+
+    pub fn deinit(self: *Avocado) void {
+        self.rest_vertices.deinit(self.alloc);
+        self.cur_vertices.deinit(self.alloc);
+        self.indices.deinit(self.alloc);
+        self.particles.deinit(self.alloc);
+        self.springs.deinit(self.alloc);
+        self.vertex_bindings.deinit(self.alloc);
+        log("deinit called");
     }
 
     fn asNode(self: *Avocado) godot.Node {
@@ -62,13 +80,13 @@ const Avocado = struct {
         // Do not crawl mesh data there; native crashes kill the whole editor.
         if (Engine.singleton().is_editor_hint()) return;
 
-        logReady("READY RAN");
+        log("READY RAN");
 
         const mesh_instance = self.asMeshInstance();
         const mesh = mesh_instance.get_mesh();
 
         if (mesh.isNull()) {
-            logReady("mesh is null; skipping vertex cache");
+            log("mesh is null; skipping vertex cache");
             return;
         }
 
@@ -77,8 +95,7 @@ const Avocado = struct {
 
         const surface_count = mesh.get_surface_count();
 
-        var buf: std.ArrayList(Vector3) = .empty;
-        errdefer buf.deinit(self.alloc);
+        const buf = &self.rest_vertices;
 
         var surface_i: i64 = 0;
         while (surface_i < surface_count) : (surface_i += 1) {
@@ -96,25 +113,44 @@ const Avocado = struct {
                 const qp: QuantizedVertexKey = .fromVector3(p, 0.001);
                 if (!seen.contains(qp)) {
                     seen.put(qp, {}) catch {
-                        logReady("failed to insert vertex into seen map");
-                        return;
+                        const msg = "failed to insert vertex into seen map";
+                        log(msg);
+                        @panic(msg);
                     };
                     buf.append(self.alloc, p) catch {
-                        logReady("failed to append rest vertex");
-                        return;
+                        const msg = "failed to append rest vertex";
+                        log(msg);
+                        @panic(msg);
                     };
                 }
             }
         }
 
-        self.rest_vertices = buf.toOwnedSlice(self.alloc) catch {
-            logReady("failed to own rest vertex slice");
+        const lattice = physics_lattice.buildPhysicsLattice(self.alloc, self.rest_vertices.items) catch {
+            log("failed to build physics lattice");
             return;
         };
+        self.lattice_min = lattice.min;
+        self.lattice_max = lattice.max;
+        self.lattice_dims = lattice.dims;
+        self.particles = lattice.particles;
+        self.springs = lattice.springs;
+        self.vertex_bindings = lattice.vertex_bindings;
 
-        var count_msg_buf: [64]u8 = undefined;
-        const msg = std.fmt.bufPrintZ(&count_msg_buf, "there are {d} rest_vertices", .{self.rest_vertices.len}) catch {
-            logReady("failed to format rest vertex count");
+        var count_msg_buf: [160]u8 = undefined;
+        const msg = std.fmt.bufPrintZ(
+            &count_msg_buf,
+            "mesh vertices={d}, lattice particles={d}, springs={d}, dims={d}x{d}x{d}",
+            .{
+                self.rest_vertices.items.len,
+                self.particles.items.len,
+                self.springs.items.len,
+                self.lattice_dims[0],
+                self.lattice_dims[1],
+                self.lattice_dims[2],
+            },
+        ) catch {
+            log("failed to format lattice count");
             return;
         };
         godot.log.errMsg("avocado", msg, .{
