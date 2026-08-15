@@ -1,13 +1,45 @@
+const std = @import("std");
 const godot = @import("godot_zig");
 
 const SoftBody3D = godot.generated.classes.SoftBody3D;
+const MeshInstance3D = godot.generated.classes.MeshInstance3D;
+const Engine = godot.generated.classes.Engine;
+const Vector3 = godot.Vector3;
 
-var ready_tag: u8 = 0;
-var physics_process_tag: u8 = 0;
+const Particle = struct {};
+
+const QuantizedVertexKey = struct {
+    x: i64,
+    y: i64,
+    z: i64,
+
+    fn fromVector3(v: godot.types.Vector3, epsilon: f32) QuantizedVertexKey {
+        return .{
+            .x = @intFromFloat(@round(v.x / epsilon)),
+            .y = @intFromFloat(@round(v.y / epsilon)),
+            .z = @intFromFloat(@round(v.z / epsilon)),
+        };
+    }
+};
+
+fn logReady(message: [*:0]const u8) void {
+    godot.log.errMsg("avocado", message, .{
+        .function = @src().fn_name,
+        .file = @src().file,
+        .line = @src().line,
+        .editor_notify = false,
+    });
+}
 
 const Avocado = struct {
     object: godot.c.GDExtensionObjectPtr,
     impulse_timer: f64,
+    alloc: std.mem.Allocator = std.heap.c_allocator,
+
+    rest_vertices: []Vector3 = &.{},
+    cur_vertices: []Vector3 = &.{},
+    indices: []i32 = &.{},
+    particles: []Particle = &.{},
 
     pub fn init(object: godot.c.GDExtensionObjectPtr) Avocado {
         return .{ .object = object, .impulse_timer = 0.0 };
@@ -21,50 +53,81 @@ const Avocado = struct {
         return SoftBody3D.init(self.object);
     }
 
+    fn asMeshInstance(self: *Avocado) MeshInstance3D {
+        return MeshInstance3D.init(self.object);
+    }
+
     fn ready(self: *Avocado) callconv(.c) void {
-        godot.log.errMsg("avocado", "READY RAN", .{
+        // The editor may instantiate scene nodes while loading/inspecting scenes.
+        // Do not crawl mesh data there; native crashes kill the whole editor.
+        if (Engine.singleton().is_editor_hint()) return;
+
+        logReady("READY RAN");
+
+        const mesh_instance = self.asMeshInstance();
+        const mesh = mesh_instance.get_mesh();
+
+        if (mesh.isNull()) {
+            logReady("mesh is null; skipping vertex cache");
+            return;
+        }
+
+        var seen = std.AutoHashMap(QuantizedVertexKey, void).init(self.alloc);
+        defer seen.deinit();
+
+        const surface_count = mesh.get_surface_count();
+
+        var buf: std.ArrayList(Vector3) = .empty;
+        errdefer buf.deinit(self.alloc);
+
+        var surface_i: i64 = 0;
+        while (surface_i < surface_count) : (surface_i += 1) {
+            var arrays = mesh.surface_get_arrays(surface_i);
+            defer arrays.destroy();
+
+            var vertices = arrays.vertices();
+            defer vertices.destroy();
+
+            const vertex_count = vertices.size();
+
+            var i: i64 = 0;
+            while (i < vertex_count) : (i += 1) {
+                const p = vertices.get(i);
+                const qp: QuantizedVertexKey = .fromVector3(p, 0.001);
+                if (!seen.contains(qp)) {
+                    seen.put(qp, {}) catch {
+                        logReady("failed to insert vertex into seen map");
+                        return;
+                    };
+                    buf.append(self.alloc, p) catch {
+                        logReady("failed to append rest vertex");
+                        return;
+                    };
+                }
+            }
+        }
+
+        self.rest_vertices = buf.toOwnedSlice(self.alloc) catch {
+            logReady("failed to own rest vertex slice");
+            return;
+        };
+
+        var count_msg_buf: [64]u8 = undefined;
+        const msg = std.fmt.bufPrintZ(&count_msg_buf, "there are {d} rest_vertices", .{self.rest_vertices.len}) catch {
+            logReady("failed to format rest vertex count");
+            return;
+        };
+        godot.log.errMsg("avocado", msg, .{
             .function = @src().fn_name,
             .file = @src().file,
             .line = @src().line,
-            .editor_notify = true,
-        });
-
-        const node = self.asNode();
-        node.set_physics_process(true);
-
-        const soft_body = self.asSoftBody();
-        soft_body.set_linear_stiffness(1.0);
-        // soft_body.set_damping_coefficient(0.7);
-        soft_body.set_drag_coefficient(0.1);
-        soft_body.set_pressure_coefficient(40.0);
-        soft_body.set_simulation_precision(5);
-        soft_body.set_total_mass(1.0);
-
-        godot.log.warnMsg("avocado", "soft body settings applied", .{
-            .function = @src().fn_name,
-            .file = @src().file,
-            .line = @src().line,
-            .editor_notify = true,
+            .editor_notify = false,
         });
     }
 
     fn physicsProcess(self: *Avocado, delta: f64) callconv(.c) void {
-        self.impulse_timer += delta;
-        if (self.impulse_timer < 2.0) return;
-        self.impulse_timer = 0.0;
-
-        godot.log.warnMsg("avocado", "applying impulse", .{
-            .function = @src().fn_name,
-            .file = @src().file,
-            .line = @src().line,
-            .editor_notify = true,
-        });
-
-        self.asSoftBody().apply_central_impulse(.{
-            .x = 2.0,
-            .y = 6.0,
-            .z = 0.0,
-        });
+        _ = self;
+        _ = delta;
     }
 
     pub fn getVirtualCallData(_: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
@@ -73,8 +136,8 @@ const Avocado = struct {
         var physics_name = godot.api.godot.stringName("_physics_process");
         defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &physics_name);
 
-        if (stringNameEqual(name, &ready_name)) return &ready_tag;
-        if (stringNameEqual(name, &physics_name)) return &physics_process_tag;
+        if (stringNameEqual(name, &ready_name)) return @ptrCast(@constCast(&ready));
+        if (stringNameEqual(name, &physics_name)) return @ptrCast(@constCast(&physicsProcess));
         return null;
     }
 
@@ -88,12 +151,12 @@ const Avocado = struct {
         _ = ret;
         const self: *Avocado = @ptrCast(@alignCast(instance.?));
 
-        if (userdata == @as(?*anyopaque, @ptrCast(&ready_tag))) {
+        if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&ready)))) {
             ready(self);
             return;
         }
 
-        if (userdata == @as(?*anyopaque, @ptrCast(&physics_process_tag))) {
+        if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&physicsProcess)))) {
             const delta: *const f64 = @ptrCast(@alignCast(args[0].?));
             physicsProcess(self, delta.*);
             return;
@@ -115,7 +178,7 @@ fn stringNameEqual(a: godot.c.GDExtensionConstStringNamePtr, b: godot.c.GDExtens
 fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
 
-    godot.class.NativeClass(Avocado, "SoftBody3D", "Avocado").register();
+    godot.class.NativeClass(Avocado, "MeshInstance3D", "Avocado").register();
 }
 
 fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {

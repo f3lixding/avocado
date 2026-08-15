@@ -20,8 +20,6 @@ ambient_light_energy = 0.5
 [node name="Avocado" type="Avocado" unique_id=1460932485]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
 mesh = SubResource("TorusMesh_a202f")
-linear_stiffness = 1.0
-pressure_coefficient = 50.0
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=870646759]
 transform = Transform3D(0.018042998, 0.6330335, -0.7739141, -0.014754507, 0.77412444, 0.6328615, 0.9997284, 1.8621393e-09, 0.023307621, -2.1071787, 2.195113, 0)

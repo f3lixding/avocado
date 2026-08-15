@@ -1,7 +1,7 @@
 {
-  "godot_zig-0.0.0-5_wrXgvVQgDoNVBNj6IlsOYNfbgbMO4cnTP3d_7qi6Sv": {
+  "godot_zig-0.0.0-5_wrXp5iQwBegN0tyEfCDIp0ucRnhQbVkPowRvrhNzic": {
     "name": "godot_zig",
-    "url": "git+https://github.com/f3lixding/godot-zig?ref=main#2b8f15a592a973298cd7bab0d8b06ec33412dda3",
-    "hash": "sha256-jMC+5Nm/frKE0zDnOchX5GIATFay2ygvOBJGpdcuamw="
+    "url": "git+https://github.com/f3lixding/godot-zig?ref=main#3d6a434c8e37f84d7c9b22ca1f1f0e9a4a599c25",
+    "hash": "sha256-TdbjYYUmLBGnkHm4ikjUj0VnxfSNWxA6lhSgvdfL278="
   }
 }
