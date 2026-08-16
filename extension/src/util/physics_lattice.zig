@@ -37,12 +37,54 @@ pub const PhysicsLattice = struct {
     vertex_bindings: std.ArrayList(RenderVertexBinding),
 };
 
+/// Intentionally named like Godot's SoftBody3D properties/setters:
+/// set_simulation_precision, set_total_mass, set_linear_stiffness,
+/// set_pressure_coefficient, set_damping_coefficient, set_drag_coefficient.
+///
+/// This is not Bullet/Godot's exact solver; it is a small position-based lattice
+/// solver using the same high-level controls.
+pub const SoftBodySimulationParams = struct {
+    simulation_precision: i64 = 5,
+    total_mass: f64 = 1.0,
+    linear_stiffness: f64 = 1.0,
+    pressure_coefficient: f64 = 0.0,
+    damping_coefficient: f64 = 0.01,
+    drag_coefficient: f64 = 0.0,
+    gravity: Vector3 = .{ .x = 0.0, .y = -9.8, .z = 0.0 },
+    /// Pulls the visual lattice back to the undeformed mesh-local shape. This is
+    /// what makes the solver useful for "rigid body + soft visual skin": Godot
+    /// moves/collides the rigid body, while this lattice only jiggles locally.
+    rest_shape_stiffness: f64 = 0.2,
+};
+
+fn vec3Add(a: Vector3, b: Vector3) Vector3 {
+    return .{ .x = a.x + b.x, .y = a.y + b.y, .z = a.z + b.z };
+}
+
 fn vec3Sub(a: Vector3, b: Vector3) Vector3 {
     return .{ .x = a.x - b.x, .y = a.y - b.y, .z = a.z - b.z };
 }
 
+fn vec3Scale(a: Vector3, s: f32) Vector3 {
+    return .{ .x = a.x * s, .y = a.y * s, .z = a.z * s };
+}
+
 fn vec3Distance(a: Vector3, b: Vector3) f32 {
     return vec3Sub(a, b).length();
+}
+
+fn vec3LengthSquared(a: Vector3) f32 {
+    return a.x * a.x + a.y * a.y + a.z * a.z;
+}
+
+fn vec3Normalize(a: Vector3) Vector3 {
+    const len = @sqrt(vec3LengthSquared(a));
+    if (len <= 0.000001) return .{};
+    return vec3Scale(a, 1.0 / len);
+}
+
+fn clamp01(value: f32) f32 {
+    return @max(0.0, @min(1.0, value));
 }
 
 fn latticeIndex(x: usize, y: usize, z: usize, dims: [3]usize) usize {
@@ -92,6 +134,152 @@ fn makeVertexBinding(v: Vector3, min: Vector3, max: Vector3, dims: [3]usize) Ren
             fx * fy * fz,
         },
     };
+}
+
+fn latticeCenter(particles: []const Particle, use_rest: bool) Vector3 {
+    if (particles.len == 0) return .{};
+
+    var center: Vector3 = .{};
+    for (particles) |p| {
+        center = vec3Add(center, if (use_rest) p.rest_position else p.position);
+    }
+    return vec3Scale(center, 1.0 / @as(f32, @floatFromInt(particles.len)));
+}
+
+fn solveSpring(particles: []Particle, spring: Spring, stiffness: f32) void {
+    const pa = &particles[spring.a];
+    const pb = &particles[spring.b];
+    const delta = vec3Sub(pb.position, pa.position);
+    const len = @sqrt(vec3LengthSquared(delta));
+    if (len <= 0.000001) return;
+
+    const inv_a = pa.inverse_mass;
+    const inv_b = pb.inverse_mass;
+    const inv_sum = inv_a + inv_b;
+    if (inv_sum <= 0.0) return;
+
+    const length_error = len - spring.rest_length;
+    const correction = vec3Scale(delta, (length_error / len) * stiffness);
+    pa.position = vec3Add(pa.position, vec3Scale(correction, inv_a / inv_sum));
+    pb.position = vec3Sub(pb.position, vec3Scale(correction, inv_b / inv_sum));
+}
+
+fn applyRestShapeMatch(particles: []Particle, params: SoftBodySimulationParams) void {
+    const stiffness = clamp01(@as(f32, @floatCast(params.rest_shape_stiffness)));
+    if (stiffness <= 0.0) return;
+
+    for (particles) |*p| {
+        if (p.inverse_mass <= 0.0) continue;
+        p.position = vec3Add(p.position, vec3Scale(vec3Sub(p.rest_position, p.position), stiffness));
+    }
+}
+
+fn applyPressureShapeMatch(particles: []Particle, params: SoftBodySimulationParams, delta: f32) void {
+    if (particles.len == 0 or params.pressure_coefficient == 0.0) return;
+
+    const rest_center = latticeCenter(particles, true);
+    const cur_center = latticeCenter(particles, false);
+    const pressure = @as(f32, @floatCast(params.pressure_coefficient));
+    const strength = clamp01(@abs(pressure) * delta * 0.01);
+    const expansion = if (pressure > 0.0) @as(f32, 1.0) else @as(f32, -1.0);
+
+    for (particles) |*p| {
+        if (p.inverse_mass <= 0.0) continue;
+
+        const rest_offset = vec3Sub(p.rest_position, rest_center);
+        const cur_offset = vec3Sub(p.position, cur_center);
+        const rest_radius = @sqrt(vec3LengthSquared(rest_offset));
+        if (rest_radius <= 0.000001) continue;
+
+        const dir = vec3Normalize(cur_offset);
+        const target = vec3Add(cur_center, vec3Scale(dir, rest_radius * (1.0 + expansion * 0.1)));
+        p.position = vec3Add(p.position, vec3Scale(vec3Sub(target, p.position), strength));
+    }
+}
+
+/// Advances the lattice particles by one physics tick.
+///
+/// Params intentionally mirror Godot SoftBody3D's common simulation properties:
+/// - simulation_precision: number of constraint iterations
+/// - total_mass: evenly distributed across lattice particles
+/// - linear_stiffness: spring constraint stiffness, 0..1 useful range
+/// - pressure_coefficient: rough volume/shape expansion term
+/// - damping_coefficient: damps particle velocity
+/// - drag_coefficient: additional velocity damping against the surrounding medium
+pub fn simulateSoftBodyLattice(
+    particles: []Particle,
+    springs: []const Spring,
+    params: SoftBodySimulationParams,
+    delta_seconds: f64,
+) void {
+    if (particles.len == 0) return;
+
+    const dt = @as(f32, @floatCast(@max(0.0, delta_seconds)));
+    if (dt <= 0.0) return;
+
+    const total_mass = @as(f32, @floatCast(params.total_mass));
+    const inv_mass = if (total_mass > 0.0) @as(f32, @floatFromInt(particles.len)) / total_mass else 0.0;
+    const damping = clamp01(@as(f32, @floatCast(params.damping_coefficient)));
+    const drag = @max(@as(f32, 0.0), @as(f32, @floatCast(params.drag_coefficient)));
+    const velocity_scale = @max(@as(f32, 0.0), (1.0 - damping) * (1.0 / (1.0 + drag * dt)));
+    const gravity_step = vec3Scale(params.gravity, dt * dt);
+
+    for (particles) |*p| {
+        p.inverse_mass = inv_mass;
+        if (p.inverse_mass <= 0.0) continue;
+
+        const old_position = p.position;
+        const velocity_step = vec3Scale(vec3Sub(p.position, p.previous_position), velocity_scale);
+        p.position = vec3Add(vec3Add(p.position, velocity_step), gravity_step);
+        p.previous_position = old_position;
+        p.velocity = vec3Scale(vec3Sub(p.position, p.previous_position), 1.0 / dt);
+    }
+
+    const iterations: usize = @intCast(@max(@as(i64, 1), params.simulation_precision));
+    const stiffness = clamp01(@as(f32, @floatCast(params.linear_stiffness)));
+    const per_iteration_stiffness = 1.0 - std.math.pow(f32, 1.0 - stiffness, 1.0 / @as(f32, @floatFromInt(iterations)));
+
+    var iteration: usize = 0;
+    while (iteration < iterations) : (iteration += 1) {
+        for (springs) |spring| solveSpring(particles, spring, per_iteration_stiffness);
+        applyRestShapeMatch(particles, params);
+        applyPressureShapeMatch(particles, params, dt);
+    }
+
+    for (particles) |*p| {
+        p.velocity = vec3Scale(vec3Sub(p.position, p.previous_position), 1.0 / dt);
+    }
+}
+
+pub fn deformVerticesFromLattice(
+    bindings: []const RenderVertexBinding,
+    particles: []const Particle,
+    dims: [3]usize,
+    out_vertices: []Vector3,
+) void {
+    std.debug.assert(out_vertices.len >= bindings.len);
+
+    for (bindings, 0..) |binding, vertex_i| {
+        const x = binding.cell_x;
+        const y = binding.cell_y;
+        const z = binding.cell_z;
+        const indices = [_]usize{
+            latticeIndex(x, y, z, dims),
+            latticeIndex(x + 1, y, z, dims),
+            latticeIndex(x, y + 1, z, dims),
+            latticeIndex(x + 1, y + 1, z, dims),
+            latticeIndex(x, y, z + 1, dims),
+            latticeIndex(x + 1, y, z + 1, dims),
+            latticeIndex(x, y + 1, z + 1, dims),
+            latticeIndex(x + 1, y + 1, z + 1, dims),
+        };
+
+        var p: Vector3 = .{};
+        for (indices, 0..) |particle_i, weight_i| {
+            p = vec3Add(p, vec3Scale(particles[particle_i].position, binding.weights[weight_i]));
+        }
+        out_vertices[vertex_i] = p;
+    }
 }
 
 pub fn buildPhysicsLattice(alloc: std.mem.Allocator, vertices: []const Vector3) !PhysicsLattice {

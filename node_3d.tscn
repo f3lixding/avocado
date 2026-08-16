@@ -2,6 +2,9 @@
 
 [sub_resource type="TorusMesh" id="TorusMesh_a202f"]
 
+[sub_resource type="SphereShape3D" id="SphereShape3D_avocado"]
+radius = 1.0
+
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hvteh"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_hvteh"]
@@ -17,8 +20,16 @@ albedo_color = Color(0.003986321, 0, 0.30955195, 1)
 ambient_light_color = Color(0.37665847, 0.37665847, 0.37665847, 1)
 ambient_light_energy = 0.5
 
-[node name="Avocado" type="Avocado" unique_id=1460932485]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+[node name="Node3D" type="Node3D"]
+
+[node name="RigidAvocado" type="RigidBody3D" parent="." unique_id=1460932485]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+mass = 1.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RigidAvocado"]
+shape = SubResource("SphereShape3D_avocado")
+
+[node name="Avocado" type="Avocado" parent="RigidAvocado"]
 mesh = SubResource("TorusMesh_a202f")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=870646759]
