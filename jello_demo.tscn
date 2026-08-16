@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://630lhe3s33p4"]
+
+[ext_resource type="Shader" uid="uid://sftjtmbcynsp" path="res://assets/floor.gdshader" id="1_2hcps"]
+[ext_resource type="PackedScene" uid="uid://dmlcpwcq5fwfg" path="res://jello.tscn" id="2_eddmw"]
+
+[sub_resource type="Environment" id="Environment_hvteh"]
+ambient_light_color = Color(0.8200029, 0.6729713, 0.63389575, 1)
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_hvteh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_37sdd"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_nym43"]
+render_priority = 0
+shader = ExtResource("1_2hcps")
+shader_parameter/size = 25.0
+shader_parameter/color1 = Color(1, 1, 1, 1)
+shader_parameter/color2 = Color(0.7, 0.7, 0.7, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_hvteh"]
+material = SubResource("ShaderMaterial_nym43")
+
+[node name="JelloDemo" type="Node" unique_id=2023862977]
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=443807075]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=256566510]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 3.1378686, -2.4211023)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=579959841]
+environment = SubResource("Environment_hvteh")
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=2098655029]
+physics_material_override = SubResource("PhysicsMaterial_hvteh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor" unique_id=1773423524]
+transform = Transform3D(100, 0, 0, 0, 100, 0, 0, 0, 100, 0, -50, 0)
+shape = SubResource("BoxShape3D_37sdd")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor" unique_id=1388090238]
+transform = Transform3D(100, 0, 0, 0, 1, 0, 0, 0, 100, 0, -0.5, 0)
+mesh = SubResource("BoxMesh_hvteh")
+
+[node name="MouseInteractor" type="Node" parent="." unique_id=1948346485]
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=22030706]
+
+[node name="Jello" parent="." unique_id=336896371 instance=ExtResource("2_eddmw")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1.9341462)

@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://dmlcpwcq5fwfg"]
+
+[ext_resource type="Shader" uid="uid://32nr365k5edq" path="res://assets/jello.gdshader" id="1_jhptw"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_eddmw"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_hvteh"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_haftu"]
+render_priority = 0
+shader = ExtResource("1_jhptw")
+shader_parameter/Specular = 0.5
+shader_parameter/Hardness = 50.0
+shader_parameter/BaseColor = Color(1, 0.5, 0, 1)
+shader_parameter/HighlightColor = Color(1, 0.9, 0.4, 1)
+shader_parameter/Opacity = 0.2
+shader_parameter/refraction = 60000.0
+
+[node name="Jello" type="RigidBody3D" unique_id=336896371]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=604844174]
+shape = SubResource("SphereShape3D_eddmw")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1699274758]
+mesh = SubResource("SphereMesh_hvteh")
+surface_material_override/0 = SubResource("ShaderMaterial_haftu")
