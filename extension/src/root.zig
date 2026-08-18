@@ -42,13 +42,20 @@ const JelloVisual = struct {
     alloc: std.mem.Allocator = std.heap.c_allocator,
 
     surfaces: std.ArrayList(SurfaceCache) = .empty,
+    rest_center: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
 
     pub fn init(object: godot.c.GDExtensionObjectPtr) JelloVisual {
         return .{ .object = object };
     }
 
     pub fn deinit(self: *JelloVisual) void {
-        _ = self;
+        for (self.surfaces.items) |*surface| {
+            surface.arrays.destroy();
+            self.alloc.free(surface.rest_vertices);
+            self.alloc.free(surface.vertices);
+            self.alloc.free(surface.normals);
+            self.alloc.free(surface.indices);
+        }
         log("deinit called");
     }
 
@@ -67,9 +74,13 @@ const JelloVisual = struct {
             @panic(msg);
         };
 
-        var buf: [64]u8 = undefined;
-        const buf_to_print = std.fmt.bufPrintZ(&buf, "Number of surfaces: {d}", .{self.surfaces.items.len}) catch @panic("");
-        log(buf_to_print);
+        self.calculateRestCenter();
+        self.applySquash(0.45);
+        self.recalculateNormals() catch {
+            const msg = "Error calculating normals";
+            log(msg);
+            @panic(msg);
+        };
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -124,6 +135,104 @@ const JelloVisual = struct {
                 .normals = normals,
                 .indices = indices,
             });
+        }
+    }
+
+    fn calculateRestCenter(self: *JelloVisual) void {
+        const first = self.surfaces.items[0].rest_vertices[0];
+
+        var min = first;
+        var max = first;
+
+        for (self.surfaces.items) |*surface| {
+            for (surface.rest_vertices) |*vertex| {
+                min.x = @min(min.x, vertex.x);
+                min.y = @min(min.y, vertex.y);
+                min.z = @min(min.z, vertex.z);
+
+                max.x = @max(max.x, vertex.x);
+                max.y = @max(max.y, vertex.y);
+                max.z = @max(max.z, vertex.z);
+            }
+        }
+
+        self.rest_center = .{
+            .x = (min.x + max.x) * 0.5,
+            .y = (min.y + max.y) * 0.5,
+            .z = (min.z + max.z) * 0.5,
+        };
+    }
+
+    fn applySquash(self: *JelloVisual, squash: f32) void {
+        const safe_squash = @min(@max(squash, 0.0), 0.65);
+        const axial = 1.0 - safe_squash;
+        const transverse = 1.0 / @sqrt(axial);
+
+        for (self.surfaces.items) |surface| {
+            for (
+                surface.rest_vertices,
+                surface.vertices,
+            ) |rest, *out| {
+                const offset = Vector3{
+                    .x = rest.x - self.rest_center.x,
+                    .y = rest.y - self.rest_center.y,
+                    .z = rest.z - self.rest_center.z,
+                };
+
+                out.* = .{
+                    .x = self.rest_center.x + offset.x * transverse,
+                    .y = self.rest_center.y + offset.y * axial,
+                    .z = self.rest_center.z + offset.z * transverse,
+                };
+            }
+        }
+    }
+
+    fn recalculateNormals(self: *JelloVisual) !void {
+        for (self.surfaces.items) |surface| {
+            @memset(surface.normals, .{});
+
+            var i: usize = 0;
+            while (i + 2 < surface.indices.len) : (i += 3) {
+                const raw_a = surface.indices[i];
+                const raw_b = surface.indices[i + 1];
+                const raw_c = surface.indices[i + 2];
+
+                if (raw_a < 0 or raw_b < 0 or raw_c < 0)
+                    return error.InvalidMeshIndex;
+
+                const a: usize = @intCast(raw_a);
+                const b: usize = @intCast(raw_b);
+                const c: usize = @intCast(raw_c);
+
+                if (a >= surface.vertices.len or
+                    b >= surface.vertices.len or
+                    c >= surface.vertices.len)
+                {
+                    return error.InvalidMeshIndex;
+                }
+
+                const ab = util.v3subtract(
+                    surface.vertices[b],
+                    surface.vertices[a],
+                );
+
+                const ac = util.v3subtract(
+                    surface.vertices[c],
+                    surface.vertices[a],
+                );
+
+                // Leave this unnormalized for area-weighted normals.
+                const face_normal = util.v3cross(ab, ac);
+
+                util.v3addTo(&surface.normals[a], face_normal);
+                util.v3addTo(&surface.normals[b], face_normal);
+                util.v3addTo(&surface.normals[c], face_normal);
+            }
+
+            for (surface.normals) |*normal| {
+                normal.* = normal.normalized();
+            }
         }
     }
 
