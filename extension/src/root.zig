@@ -5,6 +5,7 @@ const MeshInstance3D = godot.generated.classes.MeshInstance3D;
 const Node = godot.generated.classes.Node;
 const Vector3 = godot.Vector3;
 const Mesh = godot.Mesh;
+const ArrayMesh = godot.generated.classes.ArrayMesh;
 
 const util = @import("util/root.zig");
 const log = util.log;
@@ -43,6 +44,7 @@ const JelloVisual = struct {
 
     surfaces: std.ArrayList(SurfaceCache) = .empty,
     rest_center: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
+    dynamic_mesh: ?ArrayMesh = null,
 
     pub fn init(object: godot.c.GDExtensionObjectPtr) JelloVisual {
         return .{ .object = object };
@@ -81,6 +83,8 @@ const JelloVisual = struct {
             log(msg);
             @panic(msg);
         };
+        self.createDynamicMesh();
+        self.uploadVertices();
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -233,6 +237,54 @@ const JelloVisual = struct {
             for (surface.normals) |*normal| {
                 normal.* = normal.normalized();
             }
+        }
+    }
+
+    fn createDynamicMesh(self: *JelloVisual) void {
+        const dynamic_mesh = util.createArrayMesh();
+
+        var blend_shapes = util.createEmptyArray();
+        defer blend_shapes.destroy();
+
+        var lods = util.createEmtpyDictionary();
+        defer godot.api.godot.destroy(
+            godot.c.GDEXTENSION_VARIANT_TYPE_DICTIONARY,
+            &lods,
+        );
+
+        for (self.surfaces.items) |surface| {
+            dynamic_mesh.add_surface_from_arrays(
+                surface.primitive_type,
+                surface.arrays,
+                blend_shapes,
+                lods,
+                mesh_array_flag_use_dynamic_update,
+            );
+        }
+
+        const visual = MeshInstance3D.init(self.object);
+        visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
+
+        self.dynamic_mesh = dynamic_mesh;
+    }
+
+    fn uploadVertices(self: *JelloVisual) void {
+        const dynamic_mesh = self.dynamic_mesh orelse {
+            log("Dynamic mesh not created");
+            return;
+        };
+
+        for (self.surfaces.items, 0..) |surface, surface_i| {
+            const raw_bytes = std.mem.sliceAsBytes(surface.vertices);
+
+            var upload = godot.PackedByteArray.fromSlice(raw_bytes);
+            defer upload.destroy();
+
+            dynamic_mesh.surface_update_vertex_region(
+                @intCast(surface_i),
+                0, // byte offset
+                upload,
+            );
         }
     }
 

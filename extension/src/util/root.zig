@@ -2,6 +2,7 @@ const std = @import("std");
 const godot = @import("godot_zig");
 
 const Vector3 = godot.Vector3;
+const ArrayMesh = godot.generated.classes.ArrayMesh;
 
 pub fn log(message: [*:0]const u8) void {
     godot.log.errMsg("avocado", message, .{
@@ -59,4 +60,42 @@ pub fn v3addTo(target: *Vector3, value: Vector3) void {
     target.x += value.x;
     target.y += value.y;
     target.z += value.z;
+}
+
+pub fn createArrayMesh() ArrayMesh {
+    var class_name = godot.api.godot.stringName("ArrayMesh");
+    defer godot.api.godot.destroy(
+        godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+        &class_name,
+    );
+
+    const object = godot.api.godot.classdb_construct_object.?(&class_name);
+
+    return ArrayMesh.init(object);
+}
+
+pub fn createEmptyArray() godot.Array {
+    var value: godot.types.Array = std.mem.zeroes(godot.types.Array);
+
+    const constructor = godot.api.godot.variant_get_ptr_constructor.?(
+        godot.c.GDEXTENSION_VARIANT_TYPE_ARRAY,
+        0,
+    ).?;
+
+    constructor(&value, null);
+
+    return .{ .value = value };
+}
+
+pub fn createEmtpyDictionary() godot.types.Dictionary {
+    var value: godot.types.Dictionary = std.mem.zeroes(godot.types.Dictionary);
+
+    const constructor = godot.api.godot.variant_get_ptr_constructor.?(
+        godot.c.GDEXTENSION_VARIANT_TYPE_DICTIONARY,
+        0,
+    ).?;
+
+    constructor(&value, null);
+
+    return value;
 }
