@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const module = b.addModule("avocado", .{
+    const lib_module = b.addModule("avocado", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
     const lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "avocado",
-        .root_module = module,
+        .root_module = lib_module,
     });
     lib.root_module.addImport("godot_zig", godot_zig.module("godot_zig"));
 
@@ -32,4 +32,12 @@ pub fn build(b: *std.Build) void {
             b.getInstallStep().dependOn(&install.step);
         }
     }
+
+    // just so the lsp works better
+    const exe_module = b.addModule("exe", .{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_module.addImport("avocado", lib_module);
 }

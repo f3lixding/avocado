@@ -19,6 +19,8 @@ const SurfaceCache = struct {
     vertices: []Vector3,
     normals: []Vector3,
     indices: []i32,
+    normal_groups: []usize,
+    normal_sums: []Vector3,
 
     primitive_type: i64 = 3,
     arrays: godot.Array,
@@ -57,7 +59,10 @@ const JelloVisual = struct {
             self.alloc.free(surface.vertices);
             self.alloc.free(surface.normals);
             self.alloc.free(surface.indices);
+            self.alloc.free(surface.normal_groups);
+            self.alloc.free(surface.normal_sums);
         }
+        self.surfaces.deinit(self.alloc);
         log("deinit called");
     }
 
@@ -77,14 +82,14 @@ const JelloVisual = struct {
         };
 
         self.calculateRestCenter();
-        self.applySquash(0.45);
+        self.applySquash(0.30);
         self.recalculateNormals() catch {
             const msg = "Error calculating normals";
             log(msg);
             @panic(msg);
         };
-        self.createDynamicMesh();
-        self.uploadVertices();
+        self.dynamic_mesh = util.createArrayMesh();
+        self.uploadDeformedMesh();
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -120,6 +125,9 @@ const JelloVisual = struct {
             const indices = try self.alloc.alloc(i32, index_count);
             errdefer self.alloc.free(indices);
 
+            const normal_groups = try self.alloc.alloc(usize, vertex_count);
+            errdefer self.alloc.free(normal_groups);
+
             for (rest_vertices, 0..) |*vertex, i| {
                 vertex.* = packed_vertices.get(@intCast(i));
             }
@@ -132,12 +140,33 @@ const JelloVisual = struct {
                 index.* = packed_indices.get(@intCast(i));
             }
 
+            // Build seam-welding groups once. Normal updates reuse these arrays.
+            var group_by_position = std.AutoHashMap(QuantizedVertexKey, usize).init(self.alloc);
+            defer group_by_position.deinit();
+
+            var group_count: usize = 0;
+            for (rest_vertices, 0..) |rest, i| {
+                const key = QuantizedVertexKey.fromVector3(rest, 0.0001);
+                const entry = try group_by_position.getOrPut(key);
+                if (!entry.found_existing) {
+                    entry.value_ptr.* = group_count;
+                    group_count += 1;
+                }
+                normal_groups[i] = entry.value_ptr.*;
+            }
+
+            const normal_sums = try self.alloc.alloc(Vector3, group_count);
+            errdefer self.alloc.free(normal_sums);
+            @memset(normal_sums, .{});
+
             try self.surfaces.append(self.alloc, .{
                 .arrays = arrays,
                 .rest_vertices = rest_vertices,
                 .vertices = vertices,
                 .normals = normals,
                 .indices = indices,
+                .normal_groups = normal_groups,
+                .normal_sums = normal_sums,
             });
         }
     }
@@ -226,22 +255,59 @@ const JelloVisual = struct {
                     surface.vertices[a],
                 );
 
-                // Leave this unnormalized for area-weighted normals.
-                const face_normal = util.v3cross(ab, ac);
+                const face_normal = util.v3cross(ac, ab);
 
                 util.v3addTo(&surface.normals[a], face_normal);
                 util.v3addTo(&surface.normals[b], face_normal);
                 util.v3addTo(&surface.normals[c], face_normal);
             }
 
-            for (surface.normals) |*normal| {
-                normal.* = normal.normalized();
+            @memset(surface.normal_sums, .{});
+
+            for (surface.normals, surface.normal_groups) |normal, group| {
+                util.v3addTo(&surface.normal_sums[group], normal);
+            }
+
+            for (surface.normals, surface.normal_groups) |*normal, group| {
+                normal.* = surface.normal_sums[group].normalized();
             }
         }
     }
 
     fn createDynamicMesh(self: *JelloVisual) void {
         const dynamic_mesh = util.createArrayMesh();
+
+        const visual = MeshInstance3D.init(self.object);
+        visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
+
+        self.dynamic_mesh = dynamic_mesh;
+    }
+
+    fn uploadDeformedMesh(self: *JelloVisual) void {
+        const dynamic_mesh = self.dynamic_mesh orelse {
+            log("Dynamic mesh not created");
+            return;
+        };
+
+        for (self.surfaces.items) |*surface| {
+            var vertices = godot.PackedVector3Array.fromSlice(surface.vertices);
+            defer vertices.destroy();
+
+            var normals = godot.PackedVector3Array.fromSlice(surface.normals);
+            defer normals.destroy();
+
+            surface.arrays.setPackedVector3Array(
+                .vertex,
+                &vertices,
+            );
+
+            surface.arrays.setPackedVector3Array(
+                .normal,
+                &normals,
+            );
+        }
+
+        dynamic_mesh.clear_surfaces();
 
         var blend_shapes = util.createEmptyArray();
         defer blend_shapes.destroy();
@@ -264,28 +330,6 @@ const JelloVisual = struct {
 
         const visual = MeshInstance3D.init(self.object);
         visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
-
-        self.dynamic_mesh = dynamic_mesh;
-    }
-
-    fn uploadVertices(self: *JelloVisual) void {
-        const dynamic_mesh = self.dynamic_mesh orelse {
-            log("Dynamic mesh not created");
-            return;
-        };
-
-        for (self.surfaces.items, 0..) |surface, surface_i| {
-            const raw_bytes = std.mem.sliceAsBytes(surface.vertices);
-
-            var upload = godot.PackedByteArray.fromSlice(raw_bytes);
-            defer upload.destroy();
-
-            dynamic_mesh.surface_update_vertex_region(
-                @intCast(surface_i),
-                0, // byte offset
-                upload,
-            );
-        }
     }
 
     fn physicsProcess(self: *JelloVisual, delta: f64) callconv(.c) void {
