@@ -1,18 +1,27 @@
 const std = @import("std");
 const godot = @import("godot_zig");
 
-const SoftBody3D = godot.generated.classes.SoftBody3D;
 const MeshInstance3D = godot.generated.classes.MeshInstance3D;
-const ArrayMesh = godot.generated.classes.ArrayMesh;
-const Crypto = godot.generated.classes.Crypto;
-const Engine = godot.generated.classes.Engine;
-const Mesh = godot.generated.classes.Mesh;
-const PackedByteArray = godot.PackedByteArray;
+const Node = godot.generated.classes.Node;
 const Vector3 = godot.Vector3;
+const Mesh = godot.Mesh;
 
+const util = @import("util/root.zig");
+const log = util.log;
+const logStringName = util.logStringName;
 const soft_mesh = @import("util/soft_mesh.zig");
 const SoftBodySimulationParams = soft_mesh.Params;
 const mesh_array_flag_use_dynamic_update: i64 = 67_108_864;
+
+const SurfaceCache = struct {
+    rest_vertices: []Vector3,
+    vertices: []Vector3,
+    normals: []Vector3,
+    indices: []i32,
+
+    primitive_type: i64 = 3,
+    arrays: godot.Array,
+};
 
 const QuantizedVertexKey = struct {
     x: i64,
@@ -28,33 +37,97 @@ const QuantizedVertexKey = struct {
     }
 };
 
-fn log(message: [*:0]const u8) void {
-    godot.log.errMsg("avocado", message, .{
-        .function = @src().fn_name,
-        .file = @src().file,
-        .line = @src().line,
-        .editor_notify = false,
-    });
-}
-
-const Jello = struct {
+const JelloVisual = struct {
     object: godot.c.GDExtensionObjectPtr,
     alloc: std.mem.Allocator = std.heap.c_allocator,
 
-    pub fn init(object: godot.c.GDExtensionObjectPtr) Jello {
+    surfaces: std.ArrayList(SurfaceCache) = .empty,
+
+    pub fn init(object: godot.c.GDExtensionObjectPtr) JelloVisual {
         return .{ .object = object };
     }
 
-    pub fn deinit(self: *Jello) void {
+    pub fn deinit(self: *JelloVisual) void {
         _ = self;
         log("deinit called");
     }
 
-    fn ready(self: *Jello) callconv(.c) void {
-        _ = self;
+    fn ready(self: *JelloVisual) callconv(.c) void {
+        const visual = MeshInstance3D.init(self.object);
+        const source_mesh = visual.get_mesh();
+
+        if (source_mesh.isNull()) {
+            log("JelloVisual mesh not ready");
+            return;
+        }
+
+        self.collectSurfaces(&source_mesh) catch {
+            const msg = "Error collecting surfaces";
+            log(msg);
+            @panic(msg);
+        };
+
+        var buf: [64]u8 = undefined;
+        const buf_to_print = std.fmt.bufPrintZ(&buf, "Number of surfaces: {d}", .{self.surfaces.items.len}) catch @panic("");
+        log(buf_to_print);
     }
 
-    fn physicsProcess(self: *Jello, delta: f64) callconv(.c) void {
+    fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
+        const surface_count = source_mesh.get_surface_count();
+
+        var surface_i: i64 = 0;
+        while (surface_i < surface_count) : (surface_i += 1) {
+            var arrays = source_mesh.surface_get_arrays(surface_i);
+            errdefer arrays.destroy();
+
+            var packed_vertices = arrays.vertices();
+            defer packed_vertices.destroy();
+
+            var packed_indices = arrays.indices();
+            defer packed_indices.destroy();
+
+            const vertex_count: usize = @intCast(packed_vertices.size());
+            const index_count: usize = @intCast(packed_indices.size());
+
+            if (index_count == 0)
+                return error.MeshHasNoIndices;
+
+            // copy
+            const rest_vertices = try self.alloc.alloc(Vector3, vertex_count);
+            errdefer self.alloc.free(rest_vertices);
+
+            const vertices = try self.alloc.alloc(Vector3, vertex_count);
+            errdefer self.alloc.free(vertices);
+
+            const normals = try self.alloc.alloc(Vector3, vertex_count);
+            errdefer self.alloc.free(normals);
+
+            const indices = try self.alloc.alloc(i32, index_count);
+            errdefer self.alloc.free(indices);
+
+            for (rest_vertices, 0..) |*vertex, i| {
+                vertex.* = packed_vertices.get(@intCast(i));
+            }
+
+            @memcpy(vertices, rest_vertices);
+
+            @memset(normals, .{});
+
+            for (indices, 0..) |*index, i| {
+                index.* = packed_indices.get(@intCast(i));
+            }
+
+            try self.surfaces.append(self.alloc, .{
+                .arrays = arrays,
+                .rest_vertices = rest_vertices,
+                .vertices = vertices,
+                .normals = normals,
+                .indices = indices,
+            });
+        }
+    }
+
+    fn physicsProcess(self: *JelloVisual, delta: f64) callconv(.c) void {
         _ = self;
         _ = delta;
     }
@@ -78,7 +151,7 @@ const Jello = struct {
         ret: godot.c.GDExtensionTypePtr,
     ) callconv(.c) void {
         _ = ret;
-        const self: *Jello = @ptrCast(@alignCast(instance.?));
+        const self: *JelloVisual = @ptrCast(@alignCast(instance.?));
 
         if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&ready)))) {
             ready(self);
@@ -107,7 +180,7 @@ fn stringNameEqual(a: godot.c.GDExtensionConstStringNamePtr, b: godot.c.GDExtens
 fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
 
-    godot.class.NativeClass(Jello, "MeshInstance3D", "Avocado").register();
+    godot.class.NativeClass(JelloVisual, "MeshInstance3D", "JelloVisual").register();
 }
 
 fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {

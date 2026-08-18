@@ -21,6 +21,6 @@ shader_parameter/refraction = 60000.0
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=604844174]
 shape = SubResource("SphereShape3D_eddmw")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1699274758]
+[node name="JelloVisual" type="JelloVisual" parent="." unique_id=1699274758]
 mesh = SubResource("SphereMesh_hvteh")
 surface_material_override/0 = SubResource("ShaderMaterial_haftu")
