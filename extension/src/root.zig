@@ -21,6 +21,7 @@ const SurfaceCache = struct {
     indices: []i32,
     normal_groups: []usize,
     normal_sums: []Vector3,
+    vertex_upload: godot.PackedByteArray,
 
     primitive_type: i64 = 3,
     arrays: godot.Array,
@@ -88,8 +89,8 @@ const JelloVisual = struct {
             log(msg);
             @panic(msg);
         };
-        self.dynamic_mesh = util.createArrayMesh();
-        self.uploadDeformedMesh();
+        self.createDynamicMesh();
+        self.setMeshInitial();
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -118,6 +119,11 @@ const JelloVisual = struct {
 
             const vertices = try self.alloc.alloc(Vector3, vertex_count);
             errdefer self.alloc.free(vertices);
+
+            var vertex_upload = godot.PackedByteArray.fromSlice(
+                std.mem.sliceAsBytes(vertices),
+            );
+            errdefer vertex_upload.destroy();
 
             const normals = try self.alloc.alloc(Vector3, vertex_count);
             errdefer self.alloc.free(normals);
@@ -167,6 +173,7 @@ const JelloVisual = struct {
                 .indices = indices,
                 .normal_groups = normal_groups,
                 .normal_sums = normal_sums,
+                .vertex_upload = vertex_upload,
             });
         }
     }
@@ -277,13 +284,50 @@ const JelloVisual = struct {
     fn createDynamicMesh(self: *JelloVisual) void {
         const dynamic_mesh = util.createArrayMesh();
 
-        const visual = MeshInstance3D.init(self.object);
-        visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
+        var blend_shapes = util.createEmptyArray();
+        defer blend_shapes.destroy();
+
+        var lods = util.createEmtpyDictionary();
+        defer godot.api.godot.destroy(
+            godot.c.GDEXTENSION_VARIANT_TYPE_DICTIONARY,
+            &lods,
+        );
+
+        for (self.surfaces.items) |surface| {
+            dynamic_mesh.add_surface_from_arrays(
+                surface.primitive_type,
+                surface.arrays,
+                blend_shapes,
+                lods,
+                mesh_array_flag_use_dynamic_update,
+            );
+        }
 
         self.dynamic_mesh = dynamic_mesh;
     }
 
-    fn uploadDeformedMesh(self: *JelloVisual) void {
+    fn updateDeformedMesh(self: *JelloVisual) void {
+        const dynamic_mesh = self.dynamic_mesh orelse {
+            log("Dynamic mesh not created");
+            return;
+        };
+
+        for (self.surfaces.items, 0..) |surface, surface_i| {
+            const bytes = std.mem.sliceAsBytes(surface.vertices);
+
+            for (bytes, 0..) |byte, byte_i| {
+                surface.vertex_upload.set(@intCast(byte_i), byte);
+            }
+
+            dynamic_mesh.surface_update_vertex_region(
+                @intCast(surface_i),
+                0,
+                surface.vertex_upload,
+            );
+        }
+    }
+
+    fn setMeshInitial(self: *JelloVisual) void {
         const dynamic_mesh = self.dynamic_mesh orelse {
             log("Dynamic mesh not created");
             return;
@@ -304,27 +348,6 @@ const JelloVisual = struct {
             surface.arrays.setPackedVector3Array(
                 .normal,
                 &normals,
-            );
-        }
-
-        dynamic_mesh.clear_surfaces();
-
-        var blend_shapes = util.createEmptyArray();
-        defer blend_shapes.destroy();
-
-        var lods = util.createEmtpyDictionary();
-        defer godot.api.godot.destroy(
-            godot.c.GDEXTENSION_VARIANT_TYPE_DICTIONARY,
-            &lods,
-        );
-
-        for (self.surfaces.items) |surface| {
-            dynamic_mesh.add_surface_from_arrays(
-                surface.primitive_type,
-                surface.arrays,
-                blend_shapes,
-                lods,
-                mesh_array_flag_use_dynamic_update,
             );
         }
 
