@@ -62,6 +62,7 @@ const JelloVisual = struct {
             self.alloc.free(surface.indices);
             self.alloc.free(surface.normal_groups);
             self.alloc.free(surface.normal_sums);
+            surface.vertex_upload.destroy();
         }
         self.surfaces.deinit(self.alloc);
         log("deinit called");
@@ -91,6 +92,8 @@ const JelloVisual = struct {
         };
         self.createDynamicMesh();
         self.setMeshInitial();
+        // for testing, delete later
+        self.updateDeformedMesh();
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -120,11 +123,6 @@ const JelloVisual = struct {
             const vertices = try self.alloc.alloc(Vector3, vertex_count);
             errdefer self.alloc.free(vertices);
 
-            var vertex_upload = godot.PackedByteArray.fromSlice(
-                std.mem.sliceAsBytes(vertices),
-            );
-            errdefer vertex_upload.destroy();
-
             const normals = try self.alloc.alloc(Vector3, vertex_count);
             errdefer self.alloc.free(normals);
 
@@ -139,6 +137,11 @@ const JelloVisual = struct {
             }
 
             @memcpy(vertices, rest_vertices);
+
+            var vertex_upload = godot.PackedByteArray.fromSlice(
+                std.mem.sliceAsBytes(vertices),
+            );
+            errdefer vertex_upload.destroy();
 
             @memset(normals, .{});
 
@@ -312,7 +315,7 @@ const JelloVisual = struct {
             return;
         };
 
-        for (self.surfaces.items, 0..) |surface, surface_i| {
+        for (self.surfaces.items, 0..) |*surface, surface_i| {
             const bytes = std.mem.sliceAsBytes(surface.vertices);
 
             for (bytes, 0..) |byte, byte_i| {
@@ -332,24 +335,6 @@ const JelloVisual = struct {
             log("Dynamic mesh not created");
             return;
         };
-
-        for (self.surfaces.items) |*surface| {
-            var vertices = godot.PackedVector3Array.fromSlice(surface.vertices);
-            defer vertices.destroy();
-
-            var normals = godot.PackedVector3Array.fromSlice(surface.normals);
-            defer normals.destroy();
-
-            surface.arrays.setPackedVector3Array(
-                .vertex,
-                &vertices,
-            );
-
-            surface.arrays.setPackedVector3Array(
-                .normal,
-                &normals,
-            );
-        }
 
         const visual = MeshInstance3D.init(self.object);
         visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
