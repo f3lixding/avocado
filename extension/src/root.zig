@@ -6,6 +6,7 @@ const Node = godot.generated.classes.Node;
 const Vector3 = godot.Vector3;
 const Mesh = godot.Mesh;
 const ArrayMesh = godot.generated.classes.ArrayMesh;
+const RenderingServer = godot.generated.classes.RenderingServer;
 
 const util = @import("util/root.zig");
 const log = util.log;
@@ -21,7 +22,14 @@ const SurfaceCache = struct {
     indices: []i32,
     normal_groups: []usize,
     normal_sums: []Vector3,
+    // Persistent raw position bytes, reused for every deformation update.
     vertex_upload: godot.PackedByteArray,
+    // Persistent encoded normal/tangent bytes, also reused on every update.
+    normal_upload: godot.PackedByteArray,
+    // Byte location of the normal/tangent block inside Godot's vertex buffer.
+    normal_offset: i64 = 0,
+    // Bytes between consecutive encoded normals (8 when tangents are present).
+    normal_stride: usize = 0,
 
     primitive_type: i64 = 3,
     arrays: godot.Array,
@@ -68,6 +76,7 @@ const JelloVisual = struct {
             self.alloc.free(surface.normal_groups);
             self.alloc.free(surface.normal_sums);
             surface.vertex_upload.destroy();
+            surface.normal_upload.destroy();
         }
 
         self.surfaces.deinit(self.alloc);
@@ -154,6 +163,9 @@ const JelloVisual = struct {
             );
             errdefer vertex_upload.destroy();
 
+            var normal_upload = godot.PackedByteArray.init();
+            errdefer normal_upload.destroy();
+
             @memset(normals, .{});
 
             for (indices, 0..) |*index, i| {
@@ -188,6 +200,7 @@ const JelloVisual = struct {
                 .normal_groups = normal_groups,
                 .normal_sums = normal_sums,
                 .vertex_upload = vertex_upload,
+                .normal_upload = normal_upload,
             });
         }
     }
@@ -307,13 +320,26 @@ const JelloVisual = struct {
             &lods,
         );
 
-        for (self.surfaces.items) |surface| {
+        const rendering_server = RenderingServer.singleton();
+        for (self.surfaces.items, 0..) |*surface, surface_i| {
             dynamic_mesh.add_surface_from_arrays(
                 surface.primitive_type,
                 surface.arrays,
                 blend_shapes,
                 lods,
                 mesh_array_flag_use_dynamic_update,
+            );
+
+            const format = dynamic_mesh.surface_get_format(@intCast(surface_i));
+            surface.normal_stride = @intCast(rendering_server.mesh_surface_get_format_normal_tangent_stride(
+                format,
+                @intCast(surface.vertices.len),
+            ));
+            _ = surface.normal_upload.resize(@intCast(surface.vertices.len * surface.normal_stride));
+            surface.normal_offset = rendering_server.mesh_surface_get_format_offset(
+                format,
+                @intCast(surface.vertices.len),
+                @intFromEnum(godot.Array.MeshArrayType.normal),
             );
         }
 
@@ -333,10 +359,28 @@ const JelloVisual = struct {
                 surface.vertex_upload.set(@intCast(byte_i), byte);
             }
 
+            // Positions begin at byte zero in Godot's vertex buffer.
             dynamic_mesh.surface_update_vertex_region(
                 @intCast(surface_i),
                 0,
                 surface.vertex_upload,
+            );
+
+            for (surface.normals, 0..) |normal, normal_i| {
+                util.writeEncodedNormal(
+                    &surface.normal_upload,
+                    normal_i,
+                    surface.normal_stride,
+                    normal,
+                );
+            }
+
+            // Despite its name, this updates any byte range in the vertex
+            // buffer. Godot locates the normal/tangent block by this offset.
+            dynamic_mesh.surface_update_vertex_region(
+                @intCast(surface_i),
+                surface.normal_offset,
+                surface.normal_upload,
             );
         }
     }

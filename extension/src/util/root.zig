@@ -62,6 +62,37 @@ pub fn v3addTo(target: *Vector3, value: Vector3) void {
     target.z += value.z;
 }
 
+/// Writes Godot's 4-byte octahedral normal representation.
+pub fn writeEncodedNormal(upload: *godot.PackedByteArray, index: usize, stride: usize, normal: Vector3) void {
+    const denominator = @abs(normal.x) + @abs(normal.y) + @abs(normal.z);
+
+    var x: f32 = 0.5;
+    var y: f32 = 0.5;
+    if (denominator > 0.000001) {
+        var nx = normal.x / denominator;
+        var ny = normal.y / denominator;
+        const nz = normal.z / denominator;
+
+        if (nz < 0.0) {
+            const old_x = nx;
+            nx = (1.0 - @abs(ny)) * @as(f32, if (old_x >= 0.0) 1.0 else -1.0);
+            ny = (1.0 - @abs(old_x)) * @as(f32, if (ny >= 0.0) 1.0 else -1.0);
+        }
+
+        x = nx * 0.5 + 0.5;
+        y = ny * 0.5 + 0.5;
+    }
+
+    const encoded_x: u16 = @intFromFloat(@min(@max(x * 65535.0, 0.0), 65535.0));
+    const encoded_y: u16 = @intFromFloat(@min(@max(y * 65535.0, 0.0), 65535.0));
+    const offset = index * stride;
+
+    upload.set(@intCast(offset), @as(u8, @truncate(encoded_x)));
+    upload.set(@intCast(offset + 1), @as(u8, @truncate(encoded_x >> 8)));
+    upload.set(@intCast(offset + 2), @as(u8, @truncate(encoded_y)));
+    upload.set(@intCast(offset + 3), @as(u8, @truncate(encoded_y >> 8)));
+}
+
 pub fn createArrayMesh() ArrayMesh {
     var class_name = godot.api.godot.stringName("ArrayMesh");
     defer godot.api.godot.destroy(
