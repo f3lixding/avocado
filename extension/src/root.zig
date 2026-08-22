@@ -49,8 +49,13 @@ const JelloVisual = struct {
     rest_center: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
     dynamic_mesh: ?ArrayMesh = null,
 
+    mouse_button_class: godot.StringName,
+
     pub fn init(object: godot.c.GDExtensionObjectPtr) JelloVisual {
-        return .{ .object = object };
+        return .{
+            .object = object,
+            .mouse_button_class = godot.api.godot.stringName("InputEventMouseButton"),
+        };
     }
 
     pub fn deinit(self: *JelloVisual) void {
@@ -64,11 +69,20 @@ const JelloVisual = struct {
             self.alloc.free(surface.normal_sums);
             surface.vertex_upload.destroy();
         }
+
         self.surfaces.deinit(self.alloc);
+
+        godot.api.godot.destroy(
+            godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+            &self.mouse_button_class,
+        );
+
         log("deinit called");
     }
 
     fn ready(self: *JelloVisual) callconv(.c) void {
+        Node.init(self.object).set_process_input(true);
+
         const visual = MeshInstance3D.init(self.object);
         const source_mesh = visual.get_mesh();
 
@@ -84,7 +98,6 @@ const JelloVisual = struct {
         };
 
         self.calculateRestCenter();
-        self.applySquash(0.30);
         self.recalculateNormals() catch {
             const msg = "Error calculating normals";
             log(msg);
@@ -92,8 +105,6 @@ const JelloVisual = struct {
         };
         self.createDynamicMesh();
         self.setMeshInitial();
-        // for testing, delete later
-        self.updateDeformedMesh();
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -345,14 +356,37 @@ const JelloVisual = struct {
         _ = delta;
     }
 
+    fn handleInput(self: *JelloVisual, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
+        const Object = godot.generated.classes.Object;
+        const InputEvent = godot.generated.classes.InputEvent;
+        const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
+
+        const object = Object.init(raw_event);
+        if (!object.is_class(self.mouse_button_class)) return;
+
+        const mouse = InputEventMouseButton.init(raw_event);
+        if (mouse.get_button_index() != 1) return;
+
+        const event = InputEvent.init(raw_event);
+        const squash: f32 = if (event.is_pressed()) 0.30 else if (event.is_released()) 0.0 else return;
+
+        self.applySquash(squash);
+        self.recalculateNormals() catch return;
+        self.updateDeformedMesh();
+    }
+
     pub fn getVirtualCallData(_: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
         var ready_name = godot.api.godot.stringName("_ready");
         defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &ready_name);
         var physics_name = godot.api.godot.stringName("_physics_process");
         defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &physics_name);
+        var handle_input_name = godot.api.godot.stringName("_input");
+        defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &handle_input_name);
 
         if (stringNameEqual(name, &ready_name)) return @ptrCast(@constCast(&ready));
         if (stringNameEqual(name, &physics_name)) return @ptrCast(@constCast(&physicsProcess));
+        if (stringNameEqual(name, &handle_input_name)) return @ptrCast(@constCast(&handleInput));
+
         return null;
     }
 
@@ -374,6 +408,12 @@ const JelloVisual = struct {
         if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&physicsProcess)))) {
             const delta: *const f64 = @ptrCast(@alignCast(args[0].?));
             physicsProcess(self, delta.*);
+            return;
+        }
+
+        if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&handleInput)))) {
+            const event_ptr: *const godot.c.GDExtensionObjectPtr = @ptrCast(@alignCast(args[0].?));
+            handleInput(self, event_ptr.*);
             return;
         }
     }
