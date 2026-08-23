@@ -53,12 +53,23 @@ const QuantizedVertexKey = struct {
 };
 
 const JelloVisual = struct {
+    const DeformationInfo = struct {
+        deformation: f32 = 0.0,
+        deformation_velocity: f32 = 0.0,
+    };
+
+    const State = union(enum) {
+        at_rest,
+        active: DeformationInfo,
+    };
+
     object: godot.c.GDExtensionObjectPtr,
     alloc: std.mem.Allocator = std.heap.c_allocator,
 
     surfaces: std.ArrayList(SurfaceCache) = .empty,
     rest_center: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
     dynamic_mesh: ?ArrayMesh = null,
+    state: State = .at_rest,
 
     mouse_button_class: godot.StringName,
 
@@ -93,7 +104,9 @@ const JelloVisual = struct {
     }
 
     fn ready(self: *JelloVisual) callconv(.c) void {
-        Node.init(self.object).set_process_input(true);
+        const node = Node.init(self.object);
+        node.set_process_input(true);
+        node.set_physics_process(true);
 
         const visual = MeshInstance3D.init(self.object);
         const source_mesh = visual.get_mesh();
@@ -119,9 +132,49 @@ const JelloVisual = struct {
         self.setMeshInitial();
     }
 
+    fn simulate(info: *DeformationInfo, delta: f64) void {
+        const angular_frequency: f32 = 12.0;
+        const damping_ratio: f32 = 0.25;
+        const dt: f32 = @floatCast(delta);
+
+        const acceleration =
+            -angular_frequency * angular_frequency * info.deformation -
+            2.0 * damping_ratio * angular_frequency * info.deformation_velocity;
+
+        // Semi-implicit Euler: update velocity before displacement. This is
+        // more stable for a spring than updating displacement first.
+        info.deformation_velocity += acceleration * dt;
+        info.deformation += info.deformation_velocity * dt;
+    }
+
+    fn nearlyStopped(info: *const DeformationInfo) bool {
+        return @abs(info.deformation) < 0.0005 and
+            @abs(info.deformation_velocity) < 0.005;
+    }
+
     fn physicsProcess(self: *JelloVisual, delta: f64) callconv(.c) void {
-        _ = self;
-        _ = delta;
+        const deformation = switch (self.state) {
+            .at_rest => return,
+            .active => |*info| blk: {
+                simulate(info, delta);
+                if (nearlyStopped(info)) {
+                    break :blk @as(f32, 0.0);
+                }
+                break :blk info.deformation;
+            },
+        };
+
+        self.applySquash(deformation);
+        self.recalculateNormals() catch {
+            log("Error recalculating normals during deformation");
+            self.state = .at_rest;
+            return;
+        };
+        self.updateDeformedMesh();
+
+        if (deformation == 0.0) {
+            self.state = .at_rest;
+        }
     }
 
     fn handleInput(self: *JelloVisual, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
@@ -136,11 +189,19 @@ const JelloVisual = struct {
         if (mouse.get_button_index() != 1) return;
 
         const event = InputEvent.init(raw_event);
-        const squash: f32 = if (event.is_pressed()) 0.30 else if (event.is_released()) 0.0 else return;
+        if (!event.is_pressed()) return;
 
-        self.applySquash(squash);
-        self.recalculateNormals() catch return;
-        self.updateDeformedMesh();
+        const excitation_velocity: f32 = 4.0;
+        switch (self.state) {
+            .at_rest => {
+                self.state = .{ .active = .{
+                    .deformation_velocity = excitation_velocity,
+                } };
+            },
+            .active => |*info| {
+                info.deformation_velocity += excitation_velocity;
+            },
+        }
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
