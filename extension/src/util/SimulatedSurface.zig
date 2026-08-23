@@ -7,6 +7,7 @@ const Vector3 = godot.Vector3;
 const ArrayMesh = godot.generated.classes.ArrayMesh;
 const Mesh = godot.Mesh;
 const RenderingServer = godot.generated.classes.RenderingServer;
+const MeshInstance3D = godot.MeshInstance3D;
 
 const createArrayMesh = root.createArrayMesh;
 const createEmptyArray = root.createEmptyArray;
@@ -19,6 +20,7 @@ const writeEncodedNormal = root.writeEncodedNormal;
 const MESH_ARRAY_FLAG_USE_DYNAMIC_UPDATE: i64 = 67_108_864;
 const MIN_SQUASH: f32 = -0.35;
 const MAX_SQUASH: f32 = 0.65;
+const MAX_DEFORMATIONS: usize = 4;
 
 const QuantizedVertexKey = struct {
     x: i64,
@@ -55,13 +57,19 @@ const SurfaceCache = struct {
 };
 
 const DeformationInfo = struct {
+    is_active: bool = false,
+
+    anchor_rest: Vector3 = .{},
+    axis_local: Vector3 = .{},
+    radius: f32 = 0.0,
+
     deformation: f32 = 0.0,
     deformation_velocity: f32 = 0.0,
 };
 
-const State = union(enum) {
+const State = enum {
     at_rest,
-    active: DeformationInfo,
+    active,
 };
 
 const Self = @This();
@@ -72,27 +80,60 @@ surfaces: std.ArrayList(SurfaceCache) = .empty,
 rest_center: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
 dynamic_mesh: ?ArrayMesh = null,
 state: State = .at_rest,
+deformations: [MAX_DEFORMATIONS]DeformationInfo = @splat(.{}),
 
-pub fn prime(self: *Self, source_mesh: *const Mesh) !void {
-    try self.collectSurfaces(source_mesh);
+pub const VisualContact = struct {
+    point_local: Vector3,
+    normal_local: Vector3,
+    strength: f32,
+};
+
+pub fn prime(self: *Self, visual: *const MeshInstance3D) !void {
+    const source_mesh = visual.get_mesh();
+
+    if (source_mesh.isNull()) {
+        return error.MeshNotReady;
+    }
+
+    try self.collectSurfaces(&source_mesh);
     self.calculateRestCenter();
     try self.recalculateNormals();
     try self.createDynamicMesh();
+
+    const dynamic_mesh = self.dynamic_mesh orelse return error.MissingDynamicMesh;
+    visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
 }
 
 pub fn mesh(self: *const Self) ?ArrayMesh {
     return self.dynamic_mesh;
 }
 
-pub fn excite(self: *Self, deformation_velocity: f32) void {
+// TODO: change the arg to accept richer type with positional info
+pub fn excite(self: *Self, contact: VisualContact) void {
     switch (self.state) {
         .at_rest => {
-            self.state = .{ .active = .{
-                .deformation_velocity = deformation_velocity,
-            } };
+            // if we are at rest that means we can start from slot 0
+            self.deformations[0] = .{
+                .is_active = true,
+                .axis_local = contact.normal_local.normalized(),
+                .deformation_velocity = contact.strength,
+            };
+            self.state = .active;
         },
-        .active => |*info| {
-            info.deformation_velocity += deformation_velocity;
+        .active => {
+            // we would only have at max 4 excitation sites so it's acceptable to loop through this
+            for (&self.deformations) |*info| {
+                if (info.is_active) continue;
+                info.* = .{
+                    .is_active = true,
+                    .axis_local = contact.normal_local.normalized(),
+                    .deformation_velocity = contact.strength,
+                };
+                return;
+            } else {
+                // TODO: group the excitation to the nearest site
+                self.deformations[0].deformation_velocity += contact.strength;
+            }
         },
     }
 }
@@ -114,24 +155,29 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn tick(self: *Self, delta: f64) !void {
-    const deformation = switch (self.state) {
-        .at_rest => return,
-        .active => |*info| blk: {
-            simulate(info, delta);
-            if (nearlyStopped(info)) {
-                break :blk @as(f32, 0.0);
-            }
-            break :blk info.deformation;
-        },
-    };
+    if (self.state == .at_rest) return;
 
-    self.applySquash(deformation);
+    var active_count: usize = 0;
+
+    for (&self.deformations) |*info| {
+        if (!info.is_active) continue;
+
+        simulate(info, delta);
+
+        if (nearlyStopped(info)) {
+            info.* = .{};
+            continue;
+        }
+
+        active_count += 1;
+    }
+
+    if (active_count == 0)
+        self.state = .at_rest;
+
+    self.applyDeformations();
     try self.recalculateNormals();
     try self.updateDeformedMesh();
-
-    if (deformation == 0.0) {
-        self.state = .at_rest;
-    }
 }
 
 fn collectSurfaces(self: *Self, source_mesh: *const Mesh) !void {
@@ -343,27 +389,42 @@ fn nearlyStopped(info: *const DeformationInfo) bool {
         @abs(info.deformation_velocity) < 0.005;
 }
 
-fn applySquash(self: *Self, squash: f32) void {
-    const safe_squash = @min(@max(squash, MIN_SQUASH), MAX_SQUASH);
-    const axial = 1.0 - safe_squash;
-    const transverse = 1.0 / @sqrt(axial);
-
+fn applyDeformations(self: *Self) void {
+    // Every update derives from the immutable rest mesh. Active deformation
+    // slots contribute deltas to these output vertices below.
     for (self.surfaces.items) |surface| {
-        for (
-            surface.rest_vertices,
-            surface.vertices,
-        ) |rest, *out| {
-            const offset = Vector3{
-                .x = rest.x - self.rest_center.x,
-                .y = rest.y - self.rest_center.y,
-                .z = rest.z - self.rest_center.z,
-            };
+        @memcpy(surface.vertices, surface.rest_vertices);
+    }
 
-            out.* = .{
-                .x = self.rest_center.x + offset.x * transverse,
-                .y = self.rest_center.y + offset.y * axial,
-                .z = self.rest_center.z + offset.z * transverse,
-            };
+    for (&self.deformations) |*info| {
+        if (!info.is_active) continue;
+
+        const safe_squash = @min(@max(info.deformation, MIN_SQUASH), MAX_SQUASH);
+        const axial = 1.0 - safe_squash;
+        const transverse = 1.0 / @sqrt(axial);
+        const axis = info.axis_local;
+
+        for (self.surfaces.items) |surface| {
+            for (surface.rest_vertices, surface.vertices) |rest, *out| {
+                const offset = Vector3{
+                    .x = rest.x - self.rest_center.x,
+                    .y = rest.y - self.rest_center.y,
+                    .z = rest.z - self.rest_center.z,
+                };
+                const projection =
+                    offset.x * axis.x +
+                    offset.y * axis.y +
+                    offset.z * axis.z;
+
+                // Arbitrary-axis squash minus the rest offset. Adding this
+                // delta allows several active slots to contribute at once.
+                out.x += (transverse - 1.0) * offset.x +
+                    (axial - transverse) * axis.x * projection;
+                out.y += (transverse - 1.0) * offset.y +
+                    (axial - transverse) * axis.y * projection;
+                out.z += (transverse - 1.0) * offset.z +
+                    (axial - transverse) * axis.z * projection;
+            }
         }
     }
 }

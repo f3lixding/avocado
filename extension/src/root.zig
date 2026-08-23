@@ -34,24 +34,12 @@ const JelloVisual = struct {
         node.set_physics_process(true);
 
         const visual = MeshInstance3D.init(self.object);
-        const source_mesh = visual.get_mesh();
-        if (source_mesh.isNull()) {
-            log("JelloVisual mesh not ready");
-            return;
-        }
 
-        self.simulated_surface.prime(&source_mesh) catch {
+        self.simulated_surface.prime(&visual) catch {
             const message = "Error preparing simulated surface";
             log(message);
             @panic(message);
         };
-
-        const dynamic_mesh = self.simulated_surface.mesh() orelse {
-            const message = "Dynamic mesh not created";
-            log(message);
-            @panic(message);
-        };
-        visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
     }
 
     fn physicsProcess(self: *JelloVisual, delta: f64) callconv(.c) void {
@@ -74,7 +62,12 @@ const JelloVisual = struct {
         const event = InputEvent.init(raw_event);
         if (!event.is_pressed()) return;
 
-        self.simulated_surface.excite(4.0);
+        // Temporary contact until mouse raycasting supplies real local data.
+        self.simulated_surface.excite(.{
+            .point_local = .{ .x = 0.5, .y = 0.5, .z = 0.0 },
+            .normal_local = .{ .x = 1.0, .y = 1.0, .z = 0.0 },
+            .strength = 4.0,
+        });
     }
 
     pub fn getVirtualCallData(_: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
