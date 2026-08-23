@@ -13,7 +13,10 @@ const log = util.log;
 const logStringName = util.logStringName;
 const soft_mesh = @import("util/soft_mesh.zig");
 const SoftBodySimulationParams = soft_mesh.Params;
-const mesh_array_flag_use_dynamic_update: i64 = 67_108_864;
+
+const MESH_ARRAY_FLAG_USE_DYNAMIC_UPDATE: i64 = 67_108_864;
+const MIN_SQUASH: f32 = -0.35;
+const MAX_SQUASH: f32 = 0.65;
 
 const SurfaceCache = struct {
     rest_vertices: []Vector3,
@@ -114,6 +117,30 @@ const JelloVisual = struct {
         };
         self.createDynamicMesh();
         self.setMeshInitial();
+    }
+
+    fn physicsProcess(self: *JelloVisual, delta: f64) callconv(.c) void {
+        _ = self;
+        _ = delta;
+    }
+
+    fn handleInput(self: *JelloVisual, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
+        const Object = godot.generated.classes.Object;
+        const InputEvent = godot.generated.classes.InputEvent;
+        const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
+
+        const object = Object.init(raw_event);
+        if (!object.is_class(self.mouse_button_class)) return;
+
+        const mouse = InputEventMouseButton.init(raw_event);
+        if (mouse.get_button_index() != 1) return;
+
+        const event = InputEvent.init(raw_event);
+        const squash: f32 = if (event.is_pressed()) 0.30 else if (event.is_released()) 0.0 else return;
+
+        self.applySquash(squash);
+        self.recalculateNormals() catch return;
+        self.updateDeformedMesh();
     }
 
     fn collectSurfaces(self: *JelloVisual, source_mesh: *const Mesh) !void {
@@ -230,8 +257,42 @@ const JelloVisual = struct {
         };
     }
 
+    fn deformationSafeAabb(self: *JelloVisual) godot.types.AABB {
+        var rest_min = self.surfaces.items[0].rest_vertices[0];
+        var rest_max = rest_min;
+
+        for (self.surfaces.items) |surface| {
+            for (surface.rest_vertices) |vertex| {
+                rest_min.x = @min(rest_min.x, vertex.x);
+                rest_min.y = @min(rest_min.y, vertex.y);
+                rest_min.z = @min(rest_min.z, vertex.z);
+                rest_max.x = @max(rest_max.x, vertex.x);
+                rest_max.y = @max(rest_max.y, vertex.y);
+                rest_max.z = @max(rest_max.z, vertex.z);
+            }
+        }
+
+        const transverse_max = 1.0 / @sqrt(1.0 - MAX_SQUASH);
+        const axial_max = 1.0 - MIN_SQUASH;
+        const safe_min = Vector3{
+            .x = self.rest_center.x + (rest_min.x - self.rest_center.x) * transverse_max,
+            .y = self.rest_center.y + (rest_min.y - self.rest_center.y) * axial_max,
+            .z = self.rest_center.z + (rest_min.z - self.rest_center.z) * transverse_max,
+        };
+        const safe_max = Vector3{
+            .x = self.rest_center.x + (rest_max.x - self.rest_center.x) * transverse_max,
+            .y = self.rest_center.y + (rest_max.y - self.rest_center.y) * axial_max,
+            .z = self.rest_center.z + (rest_max.z - self.rest_center.z) * transverse_max,
+        };
+
+        return .{
+            .position = safe_min,
+            .size = util.v3subtract(safe_max, safe_min),
+        };
+    }
+
     fn applySquash(self: *JelloVisual, squash: f32) void {
-        const safe_squash = @min(@max(squash, 0.0), 0.65);
+        const safe_squash = @min(@max(squash, MIN_SQUASH), MAX_SQUASH);
         const axial = 1.0 - safe_squash;
         const transverse = 1.0 / @sqrt(axial);
 
@@ -308,6 +369,7 @@ const JelloVisual = struct {
         }
     }
 
+    /// Only to be used in init
     fn createDynamicMesh(self: *JelloVisual) void {
         const dynamic_mesh = util.createArrayMesh();
 
@@ -327,7 +389,7 @@ const JelloVisual = struct {
                 surface.arrays,
                 blend_shapes,
                 lods,
-                mesh_array_flag_use_dynamic_update,
+                MESH_ARRAY_FLAG_USE_DYNAMIC_UPDATE,
             );
 
             const format = dynamic_mesh.surface_get_format(@intCast(surface_i));
@@ -343,6 +405,7 @@ const JelloVisual = struct {
             );
         }
 
+        dynamic_mesh.set_custom_aabb(self.deformationSafeAabb());
         self.dynamic_mesh = dynamic_mesh;
     }
 
@@ -393,30 +456,6 @@ const JelloVisual = struct {
 
         const visual = MeshInstance3D.init(self.object);
         visual.set_mesh(Mesh.init(dynamic_mesh.asObject().ptr));
-    }
-
-    fn physicsProcess(self: *JelloVisual, delta: f64) callconv(.c) void {
-        _ = self;
-        _ = delta;
-    }
-
-    fn handleInput(self: *JelloVisual, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
-        const Object = godot.generated.classes.Object;
-        const InputEvent = godot.generated.classes.InputEvent;
-        const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
-
-        const object = Object.init(raw_event);
-        if (!object.is_class(self.mouse_button_class)) return;
-
-        const mouse = InputEventMouseButton.init(raw_event);
-        if (mouse.get_button_index() != 1) return;
-
-        const event = InputEvent.init(raw_event);
-        const squash: f32 = if (event.is_pressed()) 0.30 else if (event.is_released()) 0.0 else return;
-
-        self.applySquash(squash);
-        self.recalculateNormals() catch return;
-        self.updateDeformedMesh();
     }
 
     pub fn getVirtualCallData(_: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
