@@ -4,6 +4,8 @@ const godot = @import("godot_zig");
 const Vector3 = godot.Vector3;
 const ArrayMesh = godot.generated.classes.ArrayMesh;
 
+pub const SimulatedSurface = @import("SimulatedSurface.zig");
+
 pub fn log(message: [*:0]const u8) void {
     godot.log.errMsg("avocado", message, .{
         .function = @src().fn_name,
@@ -129,4 +131,15 @@ pub fn createEmtpyDictionary() godot.types.Dictionary {
     constructor(&value, null);
 
     return value;
+}
+
+pub fn stringNameEqual(a: godot.c.GDExtensionConstStringNamePtr, b: godot.c.GDExtensionConstStringNamePtr) bool {
+    const evaluator = godot.api.godot.variant_get_ptr_operator_evaluator.?(
+        godot.c.GDEXTENSION_VARIANT_OP_EQUAL,
+        godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+        godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+    ).?;
+    var out: u8 = 0;
+    evaluator(a, b, &out);
+    return out != 0;
 }

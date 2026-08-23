@@ -59,9 +59,7 @@ const SurfaceCache = struct {
 const DeformationInfo = struct {
     is_active: bool = false,
 
-    anchor_rest: Vector3 = .{},
     axis_local: Vector3 = .{},
-    radius: f32 = 0.0,
 
     deformation: f32 = 0.0,
     deformation_velocity: f32 = 0.0,
