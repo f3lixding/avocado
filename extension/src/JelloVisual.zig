@@ -1,7 +1,9 @@
+const std = @import("std");
 const godot = @import("godot_zig");
 const Node = godot.generated.classes.Node;
 const MeshInstance3D = godot.generated.classes.MeshInstance3D;
 const Mesh = godot.Mesh;
+const Vector3 = godot.Vector3;
 
 const util = @import("util/root.zig");
 const SimulatedSurface = util.SimulatedSurface;
@@ -42,6 +44,16 @@ fn ready(self: *Self) callconv(.c) void {
         log(message);
         @panic(message);
     };
+}
+
+pub fn onContactRequested(_: *Self, point: Vector3) callconv(.c) void {
+    var buffer: [128]u8 = undefined;
+    const message = std.fmt.bufPrintZ(
+        &buffer,
+        "contact requested at ({d:.3}, {d:.3}, {d:.3})",
+        .{ point.x, point.y, point.z },
+    ) catch return;
+    log(message.ptr);
 }
 
 fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {

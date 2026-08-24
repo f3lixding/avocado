@@ -7,6 +7,16 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
 
     godot.class.NativeClass(JelloVisual, "MeshInstance3D", "JelloVisual").register();
+
+    godot.class.NativeClass(Cursor, "RigidBody3D", "Cursor").register();
+    godot.class.registerSignal("Cursor", Cursor.ContactSignal);
+    godot.class.registerSignalHandler(
+        JelloVisual,
+        "JelloVisual",
+        "on_contact_requested",
+        Cursor.ContactSignal,
+        &JelloVisual.onContactRequested,
+    );
 }
 
 fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {

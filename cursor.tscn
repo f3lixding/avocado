@@ -4,7 +4,7 @@
 
 [sub_resource type="BoxMesh" id="BoxMesh_hvteh"]
 
-[node name="RigidBody3D" type="RigidBody3D" unique_id=972564831]
+[node name="Cursor" type="Cursor" unique_id=972564831]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=2015778397]
 transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0)

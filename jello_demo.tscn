@@ -2,6 +2,7 @@
 
 [ext_resource type="Shader" uid="uid://sftjtmbcynsp" path="res://assets/floor.gdshader" id="1_2hcps"]
 [ext_resource type="PackedScene" uid="uid://dmlcpwcq5fwfg" path="res://jello.tscn" id="2_eddmw"]
+[ext_resource type="PackedScene" uid="uid://lijgrcx8wgck" path="res://cursor.tscn" id="3_cursor"]
 
 [sub_resource type="Environment" id="Environment_hvteh"]
 ambient_light_color = Color(0.8200029, 0.6729713, 0.63389575, 1)
@@ -48,3 +49,7 @@ mesh = SubResource("BoxMesh_hvteh")
 
 [node name="Jello" parent="." unique_id=336896371 instance=ExtResource("2_eddmw")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -1.9341462)
+
+[node name="Cursor" parent="." instance=ExtResource("3_cursor")]
+
+[connection signal="contact_requested" from="Cursor" to="Jello/JelloVisual" method="on_contact_requested"]
