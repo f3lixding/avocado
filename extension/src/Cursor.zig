@@ -58,8 +58,10 @@ pub fn deinit(self: *Self) void {
 pub fn ready(self: *Self) callconv(.c) void {
     const node = Node.init(self.object);
     node.set_process_input(true);
+    // node.set_process(true);
 
-    self.camera = node.get_viewport().get_camera_3d();
+    const active_camera = node.get_viewport().get_camera_3d();
+    self.camera = if (active_camera.isNull()) null else active_camera;
     self.raycast = blk: {
         var raycast_class = godot.api.godot.stringName("RayCast3D");
         defer godot.api.godot.destroy(
@@ -76,7 +78,10 @@ pub fn ready(self: *Self) callconv(.c) void {
             const object = godot.generated.classes.Object.init(child.asObject().ptr);
 
             if (object.is_class(raycast_class)) {
-                break :blk RayCast3D.init(child.asObject().ptr);
+                const raycast = RayCast3D.init(child.asObject().ptr);
+                raycast.set_collision_mask(0);
+                raycast.set_collision_mask_value(2, true);
+                break :blk raycast;
             }
         } else @panic("Missing raycast");
     };
@@ -90,20 +95,26 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
     if (mouse.get_button_index() != 1) return;
 
     const event = InputEvent.init(raw_event);
-    if (event.is_pressed() and self.current_hit != null) {
+    if (event.is_pressed()) {
+        const hit = self.current_hit orelse return;
         const sender = godot.Object.init(self.object);
-        _ = sender.emitSignal(ContactSignal, .{}) catch return;
+        _ = sender.emitSignal(ContactSignal, .{
+            .point = hit.point_world,
+        }) catch return;
     }
 }
 
+// TODO: maybe move this to input and only do this on mouse movement?
 fn process(self: *Self, _: f64) callconv(.c) void {
     const camera = self.camera orelse return;
+    if (camera.isNull()) return;
     const raycast = self.raycast orelse return;
 
     const mouse_position = Node.init(self.object).get_viewport().get_mouse_position();
 
     self.current_hit = castFromMouse(camera, raycast, mouse_position);
 
+    const node_3d = Node3D.init(self.object);
     if (self.current_hit) |hit| {
         const surface_offset: f32 = 0.02;
 
@@ -113,7 +124,27 @@ fn process(self: *Self, _: f64) callconv(.c) void {
             .z = hit.point_world.z + hit.normal_world.z * surface_offset,
         };
 
-        Node3D.init(self.object).set_global_position(cursor_position);
+        const normal = hit.normal_world;
+
+        const target_for_look_at = Vector3{
+            .x = cursor_position.x + normal.x,
+            .y = cursor_position.y + normal.y,
+            .z = cursor_position.z + normal.z,
+        };
+        const up = if (@abs(normal.y) > 0.99)
+            Vector3{ .x = 1.0, .y = 0.0, .z = 0.0 }
+        else
+            Vector3{ .x = 0.0, .y = 1.0, .z = 0.0 };
+
+        node_3d.look_at(target_for_look_at, up, true);
+        node_3d.set_global_position(cursor_position);
+        node_3d.set_visible(true);
+
+        godot.input_helpers.setMouseMode(godot.Input.singleton(), .hidden);
+    } else {
+        node_3d.set_visible(false);
+
+        godot.input_helpers.setMouseMode(godot.Input.singleton(), .visible);
     }
 }
 

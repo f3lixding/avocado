@@ -8,7 +8,7 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
 
     godot.class.NativeClass(JelloVisual, "MeshInstance3D", "JelloVisual").register();
 
-    godot.class.NativeClass(Cursor, "RigidBody3D", "Cursor").register();
+    godot.class.NativeClass(Cursor, "Node3D", "Cursor").register();
     godot.class.registerSignal("Cursor", Cursor.ContactSignal);
     godot.class.registerSignalHandler(
         JelloVisual,
