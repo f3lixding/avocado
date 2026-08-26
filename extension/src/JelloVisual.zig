@@ -2,6 +2,7 @@ const std = @import("std");
 const godot = @import("godot_zig");
 const Node = godot.generated.classes.Node;
 const MeshInstance3D = godot.generated.classes.MeshInstance3D;
+const Node3D = godot.generated.classes.Node3D;
 const Mesh = godot.Mesh;
 const Vector3 = godot.Vector3;
 
@@ -34,7 +35,6 @@ pub fn deinit(self: *Self) void {
 
 fn ready(self: *Self) callconv(.c) void {
     const node = Node.init(self.object);
-    node.set_process_input(true);
     node.set_physics_process(true);
 
     const visual = MeshInstance3D.init(self.object);
@@ -46,14 +46,16 @@ fn ready(self: *Self) callconv(.c) void {
     };
 }
 
-pub fn onContactRequested(_: *Self, point: Vector3) callconv(.c) void {
-    var buffer: [128]u8 = undefined;
-    const message = std.fmt.bufPrintZ(
-        &buffer,
-        "contact requested at ({d:.3}, {d:.3}, {d:.3})",
-        .{ point.x, point.y, point.z },
-    ) catch return;
-    log(message.ptr);
+pub fn onContactRequested(self: *Self, point_world: Vector3) callconv(.c) void {
+    const point_local = Node3D.init(self.object).to_local(point_world);
+    const rest_center = self.simulated_surface.rest_center;
+    const squash_axis = util.v3subtract(point_local, rest_center).normalized();
+
+    self.simulated_surface.excite(.{
+        .point_local = point_local,
+        .normal_local = squash_axis,
+        .strength = 4.0,
+    });
 }
 
 fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
@@ -62,39 +64,14 @@ fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     };
 }
 
-fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
-    const Object = godot.generated.classes.Object;
-    const InputEvent = godot.generated.classes.InputEvent;
-    const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
-
-    const object = Object.init(raw_event);
-    if (!object.is_class(self.mouse_button_class)) return;
-
-    const mouse = InputEventMouseButton.init(raw_event);
-    if (mouse.get_button_index() != 1) return;
-
-    const event = InputEvent.init(raw_event);
-    if (!event.is_pressed()) return;
-
-    // Temporary contact until mouse raycasting supplies real local data.
-    self.simulated_surface.excite(.{
-        .point_local = .{ .x = 0.5, .y = 0.5, .z = 0.0 },
-        .normal_local = .{ .x = 1.0, .y = 1.0, .z = 0.0 },
-        .strength = 4.0,
-    });
-}
-
 pub fn getVirtualCallData(_: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
     var ready_name = godot.api.godot.stringName("_ready");
     defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &ready_name);
     var physics_name = godot.api.godot.stringName("_physics_process");
     defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &physics_name);
-    var handle_input_name = godot.api.godot.stringName("_input");
-    defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &handle_input_name);
 
     if (stringNameEqual(name, &ready_name)) return @ptrCast(@constCast(&ready));
     if (stringNameEqual(name, &physics_name)) return @ptrCast(@constCast(&physicsProcess));
-    if (stringNameEqual(name, &handle_input_name)) return @ptrCast(@constCast(&handleInput));
 
     return null;
 }
@@ -117,12 +94,6 @@ pub fn callVirtualWithData(
     if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&physicsProcess)))) {
         const delta: *const f64 = @ptrCast(@alignCast(args[0].?));
         physicsProcess(self, delta.*);
-        return;
-    }
-
-    if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&handleInput)))) {
-        const event_ptr: *const godot.c.GDExtensionObjectPtr = @ptrCast(@alignCast(args[0].?));
-        handleInput(self, event_ptr.*);
         return;
     }
 }

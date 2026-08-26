@@ -16,6 +16,12 @@ const stringNameEqual = util.stringNameEqual;
 const Self = @This();
 const RAY_DISTANCE: f32 = 1000.0;
 
+const State = union(enum) {
+    at_rest,
+    ascending,
+    descending,
+};
+
 object: godot.c.GDExtensionObjectPtr,
 mouse_movement_class: godot.StringName,
 mouse_button_class: godot.StringName,
@@ -23,6 +29,7 @@ camera: ?Camera3D = null,
 raycast: ?RayCast3D = null,
 // We cache this because when only act when click is detected and that is not called in the same function / scope
 current_hit: ?RayHit = null,
+state: State = .at_rest,
 
 pub const ContactSignal = struct {
     pub const signal_name: [:0]const u8 = "contact_requested";
