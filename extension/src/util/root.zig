@@ -143,3 +143,7 @@ pub fn stringNameEqual(a: godot.c.GDExtensionConstStringNamePtr, b: godot.c.GDEx
     evaluator(a, b, &out);
     return out != 0;
 }
+
+pub fn lerp(from: f32, to: f32, amount: f32) f32 {
+    return from + (to - from) * amount;
+}
