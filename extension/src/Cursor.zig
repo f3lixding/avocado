@@ -9,6 +9,7 @@ const Object = godot.generated.classes.Object;
 const InputEvent = godot.generated.classes.InputEvent;
 const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
 const InptEventMouseMotion = godot.generated.classes.InputEventMouseMotion;
+const GPUParticle3D = godot.generated.classes.GPUParticles3D;
 
 const util = @import("util/root.zig");
 const lerp = util.lerp;
@@ -42,10 +43,13 @@ const State = union(enum) {
 object: godot.c.GDExtensionObjectPtr,
 mouse_movement_class: godot.StringName,
 mouse_button_class: godot.StringName,
+
 camera: ?Camera3D = null,
 raycast: ?RayCast3D = null,
 // We cache this because when only act when click is detected and that is not called in the same function / scope
 current_hit: ?RayHit = null,
+particles: ?GPUParticle3D = null,
+
 state: State = .at_rest,
 
 pub const ContactSignal = struct {
@@ -107,6 +111,25 @@ pub fn ready(self: *Self) callconv(.c) void {
                 break :blk raycast;
             }
         } else @panic("Missing raycast");
+    };
+
+    self.particles = blk: {
+        var particles_class = godot.api.godot.stringName("GPUParticles3D");
+        defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &particles_class);
+
+        const child_count = node.get_child_count(false);
+
+        var idx: i64 = 0;
+        while (idx < child_count) : (idx += 1) {
+            const child = node.get_child(idx, false);
+
+            const object = godot.generated.classes.Object.init(child.asObject().ptr);
+
+            if (object.is_class(particles_class)) {
+                const particles = GPUParticle3D.init(child.asObject().ptr);
+                break :blk particles;
+            }
+        } else @panic("Missing particles");
     };
 }
 
@@ -276,6 +299,10 @@ fn updateStrikeAnimation(
 
     if (placement.emit_contact) {
         const sender = godot.Object.init(self.object);
+
+        if (self.particles) |p| {
+            p.restart(false);
+        }
 
         _ = sender.emitSignal(ContactSignal, .{
             .point = contact_point,

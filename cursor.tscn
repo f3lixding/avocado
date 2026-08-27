@@ -1,5 +1,7 @@
 [gd_scene format=3 uid="uid://lijgrcx8wgck"]
 
+[ext_resource type="PackedScene" uid="uid://qy3747oyi0kr" path="res://bubbles.tscn" id="1_fsq4c"]
+
 [sub_resource type="BoxMesh" id="BoxMesh_hvteh"]
 
 [node name="Cursor" type="Cursor" unique_id=1541753562]
@@ -10,3 +12,5 @@ mesh = SubResource("BoxMesh_hvteh")
 
 [node name="RayCast3D" type="RayCast3D" parent="." unique_id=1932143780]
 collision_mask = 2
+
+[node name="GPUParticles3D" parent="." unique_id=1685100002 instance=ExtResource("1_fsq4c")]
