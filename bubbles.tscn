@@ -10,6 +10,7 @@ point_count = 2
 curve = SubResource("Curve_y7mfr")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_2gy3d"]
+lifetime_randomness = 0.4
 emission_shape = 1
 emission_sphere_radius = 0.5
 spread = 80.0

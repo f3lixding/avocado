@@ -1,5 +1,8 @@
 # TODO
 - [ ] Particle system
+    - [x] add bubbles
+    - [ ] move particles onto jello_demo and spawn one for each impact
+    - [ ] bubbles popping
 - [ ] Model and rig a hand
 - [ ] Model a proper jello
 - [ ] Texture and lighting

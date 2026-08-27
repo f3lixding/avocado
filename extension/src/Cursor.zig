@@ -10,6 +10,9 @@ const InputEvent = godot.generated.classes.InputEvent;
 const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
 const InptEventMouseMotion = godot.generated.classes.InputEventMouseMotion;
 const GPUParticle3D = godot.generated.classes.GPUParticles3D;
+const PackedScene = godot.generated.classes.PackedScene;
+const RefCounted = godot.generated.classes.RefCounted;
+const ResourceLoader = godot.generated.classes.ResourceLoader;
 
 const util = @import("util/root.zig");
 const lerp = util.lerp;
@@ -48,7 +51,7 @@ camera: ?Camera3D = null,
 raycast: ?RayCast3D = null,
 // We cache this because when only act when click is detected and that is not called in the same function / scope
 current_hit: ?RayHit = null,
-particles: ?GPUParticle3D = null,
+bubble_scene: ?PackedScene = null,
 
 state: State = .at_rest,
 
@@ -56,6 +59,10 @@ pub const ContactSignal = struct {
     pub const signal_name: [:0]const u8 = "contact_requested";
 
     point: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
+};
+
+const ParticleFinishedSignal = struct {
+    pub const signal_name: [:0]const u8 = "finished";
 };
 
 const RayHit = struct {
@@ -73,6 +80,11 @@ pub fn init(object: godot.c.GDExtensionObjectPtr) Self {
 }
 
 pub fn deinit(self: *Self) void {
+    if (self.bubble_scene) |scene| {
+        _ = RefCounted.init(scene.asObject().ptr).unreference();
+        self.bubble_scene = null;
+    }
+
     godot.api.godot.destroy(
         godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME,
         &self.mouse_movement_class,
@@ -113,23 +125,32 @@ pub fn ready(self: *Self) callconv(.c) void {
         } else @panic("Missing raycast");
     };
 
-    self.particles = blk: {
-        var particles_class = godot.api.godot.stringName("GPUParticles3D");
-        defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &particles_class);
+    self.bubble_scene = blk: {
+        var path = godot.api.godot.string("res://bubbles.tscn");
+        defer godot.api.godot.destroy(
+            godot.c.GDEXTENSION_VARIANT_TYPE_STRING,
+            &path,
+        );
+        var type_hint = godot.api.godot.string("PackedScene");
+        defer godot.api.godot.destroy(
+            godot.c.GDEXTENSION_VARIANT_TYPE_STRING,
+            &type_hint,
+        );
 
-        const child_count = node.get_child_count(false);
+        const resource = ResourceLoader.singleton().load(
+            path,
+            type_hint,
+            ResourceLoader.CacheMode.reuse,
+        );
 
-        var idx: i64 = 0;
-        while (idx < child_count) : (idx += 1) {
-            const child = node.get_child(idx, false);
+        if (resource.isNull()) {
+            @panic("could not load bubble.tscn");
+        }
 
-            const object = godot.generated.classes.Object.init(child.asObject().ptr);
+        const packed_scene = PackedScene.init(resource.asObject().ptr);
+        if (!packed_scene.can_instantiate()) @panic("bubble scene not instantiable");
 
-            if (object.is_class(particles_class)) {
-                const particles = GPUParticle3D.init(child.asObject().ptr);
-                break :blk particles;
-            }
-        } else @panic("Missing particles");
+        break :blk packed_scene;
     };
 }
 
@@ -300,8 +321,43 @@ fn updateStrikeAnimation(
     if (placement.emit_contact) {
         const sender = godot.Object.init(self.object);
 
-        if (self.particles) |p| {
-            p.restart(false);
+        if (self.bubble_scene) |scn| {
+            const instance = scn.instantiate(PackedScene.GenEditState.disabled);
+            if (instance.isNull()) return;
+
+            const tree = Node.init(self.object).get_tree();
+            const parent = tree.get_current_scene();
+            if (parent.isNull()) return;
+
+            parent.add_child(
+                instance,
+                false,
+                Node.InternalMode.disabled,
+            );
+
+            const particles_node = Node3D.init(instance.asObject().ptr);
+            particles_node.set_global_position(contact_point);
+
+            const particles = GPUParticle3D.init(instance.asObject().ptr);
+
+            var cleanup = godot.Callable.fromObjectMethod(
+                instance.asObject(),
+                "queue_free",
+            );
+            defer cleanup.destroy();
+
+            const connect_res = particles.asObject().connectSignal(
+                ParticleFinishedSignal,
+                cleanup,
+            );
+            if (connect_res != 0) {
+                instance.queue_free();
+                return;
+            }
+
+            particles.set_emitting(true);
+            particles.set_one_shot(true);
+            particles.restart(false);
         }
 
         _ = sender.emitSignal(ContactSignal, .{
