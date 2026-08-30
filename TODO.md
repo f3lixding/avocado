@@ -1,14 +1,15 @@
 # TODO
-- [ ] Particle system
-    - [x] add bubbles
-    - [ ] move particles onto jello_demo and spawn one for each impact
-    - [ ] bubbles popping
+- [ ] Grass shader
+- [ ] Sound
 - [ ] Model and rig a hand
 - [ ] Model a proper jello
-- [ ] Texture and lighting
-- [ ] Animated background
+- [ ] lighting
 
 # DONE
+- [x] Particle system
+    - [x] add bubbles
+    - [x] move particles onto jello_demo and spawn one for each impact
+    - [x] bubbles popping
 - [x] Contact point sensitive compression
 - [x] Clean up
 - [x] Proper nodes set up

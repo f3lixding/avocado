@@ -1,0 +1,84 @@
+[gd_scene format=3 uid="uid://lpb4bo6fpoom"]
+
+[ext_resource type="MultiMesh" uid="uid://bte0aud8tii83" path="res://assets/grass_mm_NW.res" id="1_qn07e"]
+[ext_resource type="MultiMesh" uid="uid://bh5ho3ov77dgd" path="res://assets/grass_mm_NE.res" id="1_wd3ws"]
+[ext_resource type="MultiMesh" uid="uid://dbtmcooblq11q" path="res://assets/grass_mm_SW.res" id="3_dgmes"]
+[ext_resource type="MultiMesh" uid="uid://drv78jisycsly" path="res://assets/grass_mm_SE.res" id="4_qn07e"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hvteh"]
+size = Vector3(100, 0.2, 100)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qn07e"]
+albedo_color = Color(0.07058824, 0.26666668, 0.078431375, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_q7k1y"]
+material = SubResource("StandardMaterial3D_qn07e")
+size = Vector2(100, 100)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_36s4f"]
+albedo_color = Color(0.07058824, 0.26666668, 0.078431375, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_nttan"]
+material = SubResource("StandardMaterial3D_36s4f")
+size = Vector2(100, 100)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_v5cjn"]
+albedo_color = Color(0.07058824, 0.26666668, 0.078431375, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_cgngl"]
+material = SubResource("StandardMaterial3D_v5cjn")
+size = Vector2(100, 100)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ce06e"]
+albedo_color = Color(0.07058824, 0.26666668, 0.078431375, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_qn07e"]
+material = SubResource("StandardMaterial3D_ce06e")
+size = Vector2(100, 100)
+
+[node name="Floor" type="StaticBody3D" unique_id=805197454]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1996971591]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("BoxShape3D_hvteh")
+
+[node name="GrassChunkNW" type="Node3D" parent="." unique_id=2105685660]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, -50)
+
+[node name="Grass" type="MultiMeshInstance3D" parent="GrassChunkNW" unique_id=2057113739]
+cast_shadow = 0
+multimesh = ExtResource("1_qn07e")
+
+[node name="PopulatePlane" type="MeshInstance3D" parent="GrassChunkNW" unique_id=1242867826]
+mesh = SubResource("PlaneMesh_q7k1y")
+
+[node name="GrassChunkNE" type="Node3D" parent="." unique_id=1756238915]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, -50)
+
+[node name="Grass" type="MultiMeshInstance3D" parent="GrassChunkNE" unique_id=326509306]
+cast_shadow = 0
+multimesh = ExtResource("1_wd3ws")
+
+[node name="PopulatePlane" type="MeshInstance3D" parent="GrassChunkNE" unique_id=1361428284]
+mesh = SubResource("PlaneMesh_nttan")
+
+[node name="GrassChunkSW" type="Node3D" parent="." unique_id=422678051]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -50, 0, 50)
+
+[node name="Grass" type="MultiMeshInstance3D" parent="GrassChunkSW" unique_id=52062114]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.7506027, 42.73355, -60.1917)
+cast_shadow = 0
+multimesh = ExtResource("3_dgmes")
+
+[node name="PopulatePlane" type="MeshInstance3D" parent="GrassChunkSW" unique_id=1150926556]
+mesh = SubResource("PlaneMesh_cgngl")
+
+[node name="GrassChunkSE" type="Node3D" parent="." unique_id=1591215624]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 50)
+
+[node name="Grass" type="MultiMeshInstance3D" parent="GrassChunkSE" unique_id=854228421]
+cast_shadow = 0
+multimesh = ExtResource("4_qn07e")
+
+[node name="PopulatePlane" type="MeshInstance3D" parent="GrassChunkSE" unique_id=2107815073]
+mesh = SubResource("PlaneMesh_qn07e")
