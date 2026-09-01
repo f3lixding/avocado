@@ -1,11 +1,7 @@
 # TODO
-- [ ] Grass shader
-- [ ] Sound
-- [ ] Model and rig a hand
-- [ ] Model a proper jello
-- [ ] lighting
-
 # DONE
+- [x] Model a proper jello
+- [x] Grass shader
 - [x] Particle system
     - [x] add bubbles
     - [x] move particles onto jello_demo and spawn one for each impact
