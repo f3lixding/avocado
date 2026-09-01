@@ -2,6 +2,7 @@ const godot = @import("godot_zig");
 
 const JelloVisual = @import("JelloVisual.zig");
 const Cursor = @import("Cursor.zig");
+const Character = @import("Character.zig");
 
 fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
@@ -17,6 +18,8 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
         Cursor.ContactSignal,
         &JelloVisual.onContactRequested,
     );
+
+    godot.class.NativeClass(Character, "CharacterBody3D", "Character").register();
 }
 
 fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {

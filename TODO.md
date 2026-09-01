@@ -1,4 +1,7 @@
 # TODO
+- [ ] Move character script to extension
+- [ ] Animation invocation / interruption
+
 # DONE
 - [x] Model a proper jello
 - [x] Grass shader

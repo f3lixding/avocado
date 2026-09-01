@@ -2,7 +2,6 @@
 
 [ext_resource type="PackedScene" uid="uid://djdmlcik1eccj" path="res://assets/geonosis_arena.glb" id="1_444vf"]
 [ext_resource type="PackedScene" uid="uid://bhya8ux1n836l" path="res://assets/dancing_pigeon.glb" id="2_27ga2"]
-[ext_resource type="Script" uid="uid://lcumd0wnubxm" path="res://character.gd" id="3_character"]
 [ext_resource type="Texture2D" uid="uid://cv3y2icqcm6ua" path="res://assets/valley_of_desolation_4k.exr" id="4_h0wof"]
 
 [sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_27ga2"]
@@ -34,9 +33,8 @@ transform = Transform3D(0.001, 0, 0, 0, 0.001, 0, 0, 0, 0.001, 0, 0, 0)
 [node name="CollisionShape3D" type="CollisionShape3D" parent="arena/Sketchfab_model/ArenaForSketchfab_fbx/RootNode/Floor_002/StaticBody3D" unique_id=1213730772]
 shape = SubResource("ConcavePolygonShape3D_444vf")
 
-[node name="CharacterBody3D" type="CharacterBody3D" parent="." unique_id=1787645706]
+[node name="CharacterBody3D" type="Character" parent="." unique_id=1787645706]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.66661835, 0)
-script = ExtResource("3_character")
 
 [node name="pigeon" parent="CharacterBody3D" unique_id=670338411 instance=ExtResource("2_27ga2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.195, 0)
