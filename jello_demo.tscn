@@ -1,11 +1,23 @@
 [gd_scene format=3 uid="uid://630lhe3s33p4"]
 
+[ext_resource type="Texture2D" uid="uid://cv3y2icqcm6ua" path="res://assets/valley_of_desolation_4k.exr" id="1_jtmo2"]
 [ext_resource type="PackedScene" uid="uid://dmlcpwcq5fwfg" path="res://jello.tscn" id="2_eddmw"]
 [ext_resource type="PackedScene" uid="uid://lpb4bo6fpoom" path="res://floor.tscn" id="3_2pa7u"]
 [ext_resource type="PackedScene" uid="uid://lijgrcx8wgck" path="res://cursor.tscn" id="3_cursor"]
 
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_4ycnr"]
+panorama = ExtResource("1_jtmo2")
+
+[sub_resource type="Sky" id="Sky_ja7aw"]
+sky_material = SubResource("PanoramaSkyMaterial_4ycnr")
+
 [sub_resource type="Environment" id="Environment_hvteh"]
+background_mode = 2
+sky = SubResource("Sky_ja7aw")
+ambient_light_source = 3
 ambient_light_color = Color(0.8200029, 0.6729713, 0.63389575, 1)
+sdfgi_use_occlusion = true
+volumetric_fog_density = 0.01
 
 [node name="JelloDemo" type="Node" unique_id=2023862977]
 
@@ -25,10 +37,11 @@ transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, 0, 5, -1.934)
 
 [node name="Cursor" parent="." unique_id=1471981437 instance=ExtResource("3_cursor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.49996, 0.020000834, -0.21720402)
+visible = false
 
 [node name="Floor" parent="." unique_id=805197454 instance=ExtResource("3_2pa7u")]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=2070297257]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 22, 0)
+transform = Transform3D(1, 0, 0, 0, 0.77608263, 0.6306313, 0, -0.6306313, 0.77608263, 0, 22, 0)
 
 [connection signal="contact_requested" from="Cursor" to="Jello/JelloVisual" method="on_contact_requested"]
