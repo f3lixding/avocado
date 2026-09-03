@@ -20,15 +20,49 @@ const stringNameEqual = util.stringNameEqual;
 
 const Self = @This();
 
-object: godot.c.GDExtensionObjectPtr,
-move_left: godot.StringName,
-move_right: godot.StringName,
-move_forward: godot.StringName,
-move_backward: godot.StringName,
-jump: godot.StringName,
-mouse_motion_class: godot.StringName,
+pub const RuntimeNames = struct {
+    move_left: godot.StringName,
+    move_right: godot.StringName,
+    move_forward: godot.StringName,
+    move_backward: godot.StringName,
+    jump: godot.StringName,
+    input_event_mouse_motion: godot.StringName,
+    anim_name: godot.StringName,
+    ready: godot.StringName,
+    input: godot.StringName,
+    physics_process: godot.StringName,
 
-anim_name: godot.StringName,
+    pub fn init() RuntimeNames {
+        return .{
+            .move_left = godot.api.godot.stringName("move_left"),
+            .move_right = godot.api.godot.stringName("move_right"),
+            .move_forward = godot.api.godot.stringName("move_forward"),
+            .move_backward = godot.api.godot.stringName("move_backward"),
+            .jump = godot.api.godot.stringName("jump"),
+            .input_event_mouse_motion = godot.api.godot.stringName("InputEventMouseMotion"),
+            .anim_name = godot.api.godot.stringName("Take 001"),
+            .ready = godot.api.godot.stringName("_ready"),
+            .input = godot.api.godot.stringName("_input"),
+            .physics_process = godot.api.godot.stringName("_physics_process"),
+        };
+    }
+
+    pub fn deinit(self: *RuntimeNames) void {
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_left);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_right);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_forward);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_backward);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input_event_mouse_motion);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_name);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.ready);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.physics_process);
+    }
+};
+
+object: godot.c.GDExtensionObjectPtr,
+names: *RuntimeNames,
 animation_player_path: godot.NodePath,
 animation_player: ?AnimationPlayer = null,
 
@@ -46,33 +80,23 @@ const MOUSE_SENSITIVITY: f64 = 0.0025;
 const MINIMUM_PITCH: f64 = -60.0;
 const MAXIMUM_PITCH: f64 = 45.0;
 
-pub fn init(object: godot.c.GDExtensionObjectPtr) Self {
+pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*anyopaque) Self {
+    const names: *RuntimeNames = @ptrCast(@alignCast(class_userdata.?));
     return .{
         .object = object,
-        .move_left = godot.api.godot.stringName("move_left"),
-        .move_right = godot.api.godot.stringName("move_right"),
-        .move_forward = godot.api.godot.stringName("move_forward"),
-        .move_backward = godot.api.godot.stringName("move_backward"),
-        .jump = godot.api.godot.stringName("jump"),
-        .mouse_motion_class = godot.api.godot.stringName("InputEventMouseMotion"),
-        .anim_name = godot.api.godot.stringName("Take 001"),
+        .names = names,
         .animation_player_path = godot.api.godot.nodePath("pigeon/AnimationPlayer"),
     };
 }
 
 pub fn deinit(self: *Self) void {
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_left);
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_right);
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_forward);
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_backward);
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump);
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.mouse_motion_class);
     godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.animation_player_path);
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_name);
 }
 
 pub fn ready(self: *Self) callconv(.c) void {
     if (Engine.singleton().is_editor_hint()) return;
+
+    self.ensureInputActionsExist();
 
     const node = Node.init(self.object);
     node.set_physics_process(true);
@@ -84,6 +108,7 @@ pub fn ready(self: *Self) callconv(.c) void {
     self.spring_arm = SpringArm3D.init(spring_arm_node.object.ptr);
     const camera_3d_node = spring_arm_node.get_child(0, false);
     self.camera = Camera3D.init(camera_3d_node.object.ptr);
+
     const animation_player_node = node.get_node(self.animation_player_path);
     if (!animation_player_node.isNull()) {
         self.animation_player = AnimationPlayer.init(animation_player_node.object.ptr);
@@ -99,7 +124,7 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
     if (Engine.singleton().is_editor_hint()) return;
 
     const object = Object.init(raw_event);
-    if (!object.is_class(self.mouse_motion_class) or Input.singleton().get_mouse_mode() != Input.MouseMode.captured) return;
+    if (!object.is_class(self.names.input_event_mouse_motion) or Input.singleton().get_mouse_mode() != Input.MouseMode.captured) return;
 
     const motion = InputEventMouseMotion.init(raw_event);
     const relative = motion.get_relative();
@@ -124,10 +149,10 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
 
     var x: f32 = 0.0;
     var z: f32 = 0.0;
-    if (input.is_action_pressed(self.move_left, false)) x -= 1.0;
-    if (input.is_action_pressed(self.move_right, false)) x += 1.0;
-    if (input.is_action_pressed(self.move_forward, false)) z -= 1.0;
-    if (input.is_action_pressed(self.move_backward, false)) z += 1.0;
+    if (input.is_action_pressed(self.names.move_left, false)) x -= 1.0;
+    if (input.is_action_pressed(self.names.move_right, false)) x += 1.0;
+    if (input.is_action_pressed(self.names.move_forward, false)) z -= 1.0;
+    if (input.is_action_pressed(self.names.move_backward, false)) z += 1.0;
 
     const length = @sqrt(x * x + z * z);
     const has_movement_input = length > 0.0;
@@ -148,7 +173,7 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     velocity.z = moveToward(velocity.z, direction.z * MOVE_SPEED, step);
 
     if (body.is_on_floor()) {
-        if (input.is_action_just_pressed(self.jump, false)) {
+        if (input.is_action_just_pressed(self.names.jump, false)) {
             velocity.y = JUMP_VELOCITY;
         } else if (velocity.y < 0.0) {
             velocity.y = 0.0;
@@ -161,12 +186,21 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     _ = body.move_and_slide();
 }
 
+fn ensureInputActionsExist(self: *Self) void {
+    const input_map = InputMap.singleton();
+    if (!input_map.has_action(self.names.move_left)) input_map.add_action(self.names.move_left, 0.5);
+    if (!input_map.has_action(self.names.move_right)) input_map.add_action(self.names.move_right, 0.5);
+    if (!input_map.has_action(self.names.move_forward)) input_map.add_action(self.names.move_forward, 0.5);
+    if (!input_map.has_action(self.names.move_backward)) input_map.add_action(self.names.move_backward, 0.5);
+    if (!input_map.has_action(self.names.jump)) input_map.add_action(self.names.jump, 0.5);
+}
+
 fn updateAnimation(self: *Self, should_walk: bool) void {
     const player = self.animation_player orelse return;
 
     if (should_walk) {
         if (!player.is_playing()) {
-            player.play(self.anim_name, -1.0, 1.0, false);
+            player.play(self.names.anim_name, -1.0, 1.0, false);
         }
     } else if (player.is_playing()) {
         player.stop(false);
@@ -222,17 +256,11 @@ fn cameraRelativeDirection(self: *Self, input: Vector2) Vector3 {
     return direction.normalized();
 }
 
-pub fn getVirtualCallData(_: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
-    var ready_name = godot.api.godot.stringName("_ready");
-    defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &ready_name);
-    var input_name = godot.api.godot.stringName("_input");
-    defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &input_name);
-    var physics_name = godot.api.godot.stringName("_physics_process");
-    defer godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &physics_name);
-
-    if (stringNameEqual(name, &ready_name)) return @ptrCast(@constCast(&ready));
-    if (stringNameEqual(name, &input_name)) return @ptrCast(@constCast(&handleInput));
-    if (stringNameEqual(name, &physics_name)) return @ptrCast(@constCast(&physicsProcess));
+pub fn getVirtualCallData(class_userdata: ?*anyopaque, name: godot.c.GDExtensionConstStringNamePtr, _: u32) callconv(.c) ?*anyopaque {
+    const names: *RuntimeNames = @ptrCast(@alignCast(class_userdata.?));
+    if (stringNameEqual(name, &names.ready)) return @ptrCast(@constCast(&ready));
+    if (stringNameEqual(name, &names.input)) return @ptrCast(@constCast(&handleInput));
+    if (stringNameEqual(name, &names.physics_process)) return @ptrCast(@constCast(&physicsProcess));
     return null;
 }
 
