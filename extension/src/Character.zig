@@ -31,6 +31,10 @@ pub const RuntimeNames = struct {
     ready: godot.StringName,
     input: godot.StringName,
     physics_process: godot.StringName,
+    animation_player_path: godot.NodePath,
+    camera_pivot_path: godot.NodePath,
+    spring_arm_path: godot.NodePath,
+    camera_path: godot.NodePath,
 
     pub fn init() RuntimeNames {
         return .{
@@ -40,10 +44,14 @@ pub const RuntimeNames = struct {
             .move_backward = godot.api.godot.stringName("move_backward"),
             .jump = godot.api.godot.stringName("jump"),
             .input_event_mouse_motion = godot.api.godot.stringName("InputEventMouseMotion"),
-            .anim_name = godot.api.godot.stringName("Take 001"),
+            .anim_name = godot.api.godot.stringName("Jog_Fwd"),
             .ready = godot.api.godot.stringName("_ready"),
             .input = godot.api.godot.stringName("_input"),
             .physics_process = godot.api.godot.stringName("_physics_process"),
+            .animation_player_path = godot.api.godot.nodePath("UAL1/AnimationPlayer"),
+            .camera_pivot_path = godot.api.godot.nodePath("CameraPivot"),
+            .spring_arm_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D"),
+            .camera_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/Camera3D"),
         };
     }
 
@@ -58,12 +66,15 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.ready);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.physics_process);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.animation_player_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_pivot_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.spring_arm_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_path);
     }
 };
 
 object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
-animation_player_path: godot.NodePath,
 animation_player: ?AnimationPlayer = null,
 
 spring_arm: ?SpringArm3D = null,
@@ -85,13 +96,10 @@ pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*
     return .{
         .object = object,
         .names = names,
-        .animation_player_path = godot.api.godot.nodePath("pigeon/AnimationPlayer"),
     };
 }
 
-pub fn deinit(self: *Self) void {
-    godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.animation_player_path);
-}
+pub fn deinit(_: *Self) void {}
 
 pub fn ready(self: *Self) callconv(.c) void {
     if (Engine.singleton().is_editor_hint()) return;
@@ -102,14 +110,18 @@ pub fn ready(self: *Self) callconv(.c) void {
     node.set_physics_process(true);
     node.set_process_input(true);
 
-    const camera_pivot_node = node.get_child(2, false);
-    self.camera_pivot = Node3D.init(camera_pivot_node.object.ptr);
-    const spring_arm_node = camera_pivot_node.get_child(0, false);
-    self.spring_arm = SpringArm3D.init(spring_arm_node.object.ptr);
-    const camera_3d_node = spring_arm_node.get_child(0, false);
-    self.camera = Camera3D.init(camera_3d_node.object.ptr);
+    const camera_pivot_node = node.get_node(self.names.camera_pivot_path);
+    const spring_arm_node = node.get_node(self.names.spring_arm_path);
+    const camera_node = node.get_node(self.names.camera_path);
+    if (!camera_pivot_node.isNull() and !spring_arm_node.isNull() and !camera_node.isNull()) {
+        self.camera_pivot = Node3D.init(camera_pivot_node.object.ptr);
+        self.spring_arm = SpringArm3D.init(spring_arm_node.object.ptr);
+        self.camera = Camera3D.init(camera_node.object.ptr);
+    } else {
+        util.log("camera rig node is null");
+    }
 
-    const animation_player_node = node.get_node(self.animation_player_path);
+    const animation_player_node = node.get_node(self.names.animation_player_path);
     if (!animation_player_node.isNull()) {
         self.animation_player = AnimationPlayer.init(animation_player_node.object.ptr);
     } else {

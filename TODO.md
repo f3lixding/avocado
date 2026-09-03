@@ -1,6 +1,8 @@
 # TODO
+- [ ] Humanoid model
 - [ ] Standardize camera placement?
 - [ ] Animation invocation / interruption
+- [ ] Multi-client set up
 
 # DONE
 - [x] Find a better place to perform class level resource instantiation (i.e. things that are common to all instances)

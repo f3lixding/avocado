@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ccqqwq0uh6fcx"]
 
 [ext_resource type="PackedScene" uid="uid://bn87hfbnf6cjn" path="res://assets/training_room.glb" id="1_27ga2"]
-[ext_resource type="PackedScene" uid="uid://bhya8ux1n836l" path="res://assets/dancing_pigeon.glb" id="2_27ga2"]
+[ext_resource type="PackedScene" uid="uid://cggftcdgtvc1e" path="res://assets/humanoid/Unreal-Godot/UAL1.glb" id="3_27ga2"]
 [ext_resource type="Texture2D" uid="uid://cv3y2icqcm6ua" path="res://assets/valley_of_desolation_4k.exr" id="4_h0wof"]
 
 [sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_27ga2"]
@@ -27,7 +27,7 @@ data = PackedVector3Array(1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 
 [sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_sbb53"]
 data = PackedVector3Array(1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, -1, 1, 1, 1, 1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, 1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, -1, -1, -1, 1, -1, 1, 1, -1, -1, -1, -1, -1, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, 1, 1, -1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, -1, 1, 1, -1)
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_haftu"]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_hvteh"]
 
 [node name="main" type="Node3D" unique_id=1354692855]
 
@@ -57,68 +57,81 @@ shape = SubResource("ConcavePolygonShape3D_fu4bq")
 transform = Transform3D(1, 0, 0, -2.1684043e-19, 1, 0, 0, 0, 1, 0, 0, 0)
 shape = SubResource("ConcavePolygonShape3D_sbb53")
 
-[node name="CharacterBody3D" type="Character" parent="." unique_id=1787645706]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.66661835, 0)
+[node name="Humanoid" type="Character" parent="." unique_id=2106949045]
 
-[node name="pigeon" parent="CharacterBody3D" unique_id=670338411 instance=ExtResource("2_27ga2")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.195, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Humanoid" unique_id=1150884513]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9916413, 0)
+shape = SubResource("CapsuleShape3D_hvteh")
 
-[node name="Skeleton3D" parent="CharacterBody3D/pigeon/Sketchfab_model/b3fddbd9fea747cbbec0c798ae990146_fbx/Object_2/RootNode/Object_4" parent_id_path=PackedInt32Array(670338411, 753824305) index="0" unique_id=997603595]
-bones/1/rotation = Quaternion(-0.7071068, 0, 0, 0.7071068)
-bones/4/position = Vector3(19.182644, -1.5e-05, 0)
-bones/4/rotation = Quaternion(0.1005561, 0.69992024, -0.10055607, 0.6999204)
-bones/6/rotation = Quaternion(-0.09695476, 0.7004282, 0.09695473, 0.70042837)
-bones/8/rotation = Quaternion(-4.3105477e-08, 0.94615406, 0.3237166, 1.2598805e-07)
-bones/10/rotation = Quaternion(-0.20410132, 0.67701, 0.20410123, 0.6770102)
-bones/12/rotation = Quaternion(-0.032670487, 0.7063515, 0.032670483, 0.7063518)
-bones/14/rotation = Quaternion(-0.025909677, 0.7066318, 0.02590966, 0.7066322)
-bones/16/rotation = Quaternion(-8.826361e-16, -8.049146e-16, -0.73889, 0.6738261)
-bones/17/rotation = Quaternion(-0.6738261, 0.73889005, 9.838916e-08, -8.9725376e-08)
-bones/18/rotation = Quaternion(-0.086188786, 0.4336334, -0.00021650534, 0.89695793)
-bones/20/rotation = Quaternion(1.8565123e-07, 3.155557e-08, 0.81559765, 0.5786194)
-bones/22/rotation = Quaternion(0, -7.486973e-16, 0.92509437, 0.37973732)
-bones/24/rotation = Quaternion(-0.4338284, 0.045190148, 0.8997222, -0.015834859)
-bones/26/rotation = Quaternion(-1.8565125e-07, -3.1555594e-08, -0.5786193, 0.8155978)
-bones/28/rotation = Quaternion(-1.7374887e-07, -7.2618604e-08, -0.37973773, 0.92509425)
-bones/31/rotation = Quaternion(-0.6760116, 0.20738453, 0.6943855, 0.13352409)
-bones/32/rotation = Quaternion(6.7964714e-07, -1.35719755e-08, -0.116314925, 0.9932124)
-bones/34/rotation = Quaternion(0.13352282, -0.6943859, 0.2073836, 0.6760118)
-bones/35/rotation = Quaternion(6.748576e-07, -1.4249348e-08, -0.11631492, 0.9932124)
-bones/37/rotation = Quaternion(0.97224885, 0.23394907, 3.1152204e-08, 1.2946276e-07)
-bones/41/rotation = Quaternion(-0.44440392, -0.5500049, 0.5611998, 0.43017983)
-bones/42/rotation = Quaternion(8.5091256e-10, 1.19107755e-08, -0.030145612, 0.9995456)
-bones/43/rotation = Quaternion(-2.0659742e-10, -2.9943825e-09, -1.8626451e-09, 1)
-bones/47/rotation = Quaternion(-0.25949076, -0.65777236, 0.6641991, 0.24256884)
-bones/48/rotation = Quaternion(-4.5025626e-08, -6.9916766e-08, -0.030145887, 0.9995455)
-bones/53/rotation = Quaternion(-0.36249313, -0.60712355, 0.6162031, 0.34683377)
-bones/54/rotation = Quaternion(1.0537691e-07, -4.8808886e-09, -0.030145613, 0.9995456)
-bones/55/rotation = Quaternion(-1.6532908e-10, -5.369344e-09, 2.5817382e-18, 1)
-bones/67/rotation = Quaternion(-0.24256799, 0.6641994, 0.65777314, -0.25948918)
-bones/68/rotation = Quaternion(9.749709e-10, -1.5695717e-08, -0.03014561, 0.9995456)
-bones/73/rotation = Quaternion(-0.34671763, 0.61626846, 0.60716575, -0.36242223)
-bones/74/rotation = Quaternion(5.1640714e-10, -1.3616407e-08, -0.03014561, 0.9995456)
-bones/79/rotation = Quaternion(-0.4300724, 0.5612822, 0.5501022, -0.44428322)
-bones/80/rotation = Quaternion(2.7812365e-11, -7.597992e-10, -0.03014561, 0.9995456)
+[node name="CameraPivot" type="Node3D" parent="Humanoid" unique_id=750090120]
+transform = Transform3D(-1, 0, 8.742278e-08, 2.4318862e-08, 0.9605303, 0.27817535, -8.3972225e-08, 0.27817535, -0.9605303, 0, 1.8666184, 0)
 
-[node name="Circle008_015" parent="CharacterBody3D/pigeon/Sketchfab_model/b3fddbd9fea747cbbec0c798ae990146_fbx/Object_2/RootNode/Object_4/Skeleton3D" index="0" unique_id=914923589]
-transform = Transform3D(-3.773178e-07, -3.635525e-07, -0.99999976, 1.1920929e-07, 0.99999946, -3.6860354e-07, 0.9999997, -3.501773e-07, -3.2922588e-07, -6.3940387, 118.873886, 3.2453868)
-
-[node name="Circle009_016" parent="CharacterBody3D/pigeon/Sketchfab_model/b3fddbd9fea747cbbec0c798ae990146_fbx/Object_2/RootNode/Object_4/Skeleton3D" index="1" unique_id=1081631445]
-transform = Transform3D(-3.7731778e-07, 9.7236466e-08, 0.99999976, -5.2381713e-21, -0.99999946, 1.0228757e-07, 0.9999997, 2.9057256e-07, 3.2922597e-07, 6.4598794, 118.87389, 3.2453904)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="CharacterBody3D" unique_id=1554638661]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2024313, 0)
-shape = SubResource("CapsuleShape3D_haftu")
-
-[node name="CameraPivot" type="Node3D" parent="CharacterBody3D" unique_id=750090120]
-transform = Transform3D(-1, 0, 8.742278e-08, 2.4318862e-08, 0.9605303, 0.27817535, -8.3972225e-08, 0.27817535, -0.9605303, 0, 1.2, 0)
-
-[node name="SpringArm3D" type="SpringArm3D" parent="CharacterBody3D/CameraPivot" unique_id=197319861]
+[node name="SpringArm3D" type="SpringArm3D" parent="Humanoid/CameraPivot" unique_id=197319861]
 transform = Transform3D(1, 0, -7.1054274e-15, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 spring_length = 2.0
 margin = 0.1
 
-[node name="Camera3D" type="Camera3D" parent="CharacterBody3D/CameraPivot/SpringArm3D" unique_id=1415832430]
+[node name="Camera3D" type="Camera3D" parent="Humanoid/CameraPivot/SpringArm3D" unique_id=1415832430]
+
+[node name="UAL1" parent="Humanoid" unique_id=793435279 instance=ExtResource("3_27ga2")]
+
+[node name="Skeleton3D" parent="Humanoid/UAL1/Armature" parent_id_path=PackedInt32Array(793435279, 448473660) index="0" unique_id=553280285]
+bones/1/position = Vector3(-0.013007158, 0.07442317, 0.9290783)
+bones/1/rotation = Quaternion(0.8949983, 0.025179293, -0.021800645, 0.44482458)
+bones/3/rotation = Quaternion(0.08243058, -0.04532312, 0.056000873, 0.99398947)
+bones/4/rotation = Quaternion(0.15309969, -0.15519358, -0.008754584, 0.9759093)
+bones/5/rotation = Quaternion(-0.04689136, 0.10207196, -0.008318896, 0.9936365)
+bones/6/rotation = Quaternion(-0.24524936, 0.10188846, -0.01036448, 0.96403533)
+bones/7/rotation = Quaternion(-0.6040205, -0.34510303, -0.35671777, 0.62355095)
+bones/8/rotation = Quaternion(-0.065612, 0.68265855, -0.4930453, 0.53533053)
+bones/9/rotation = Quaternion(0.6758409, -0.11456435, 0.17441912, 0.706889)
+bones/10/rotation = Quaternion(0.116709, -0.0029165994, -0.044778563, 0.992152)
+bones/11/rotation = Quaternion(0.44519058, 0.54936886, -0.44519398, 0.54936475)
+bones/12/rotation = Quaternion(0.62334144, -1.0599063e-07, 4.631227e-08, 0.7819498)
+bones/13/rotation = Quaternion(0.6233419, -6.16356e-08, -1.7865535e-08, 0.7819494)
+bones/15/rotation = Quaternion(0.43209013, 0.5386997, -0.45804635, 0.5597271)
+bones/16/rotation = Quaternion(0.62334144, 0.0009433493, 0.0011834812, 0.7819483)
+bones/17/rotation = Quaternion(0.6233407, -0.0007042375, -0.0008832343, 0.7819496)
+bones/19/rotation = Quaternion(0.50405717, 0.5115414, -0.4351516, 0.54304224)
+bones/20/rotation = Quaternion(0.62316346, -0.020061422, 0.014925618, 0.78169185)
+bones/21/rotation = Quaternion(0.6233408, 0.00037974646, 0.00047657816, 0.7819501)
+bones/23/rotation = Quaternion(0.4353397, 0.5413559, -0.45490417, 0.55720323)
+bones/24/rotation = Quaternion(0.62334144, 7.5962503e-06, 9.6397e-06, 0.78194976)
+bones/25/rotation = Quaternion(0.62334144, -0.0006652561, -0.0008344519, 0.78194916)
+bones/27/rotation = Quaternion(0.29083848, 0.9496491, 0.11458377, 0.021217072)
+bones/28/rotation = Quaternion(0.21939024, 0.023802567, -0.005304918, 0.9753324)
+bones/29/rotation = Quaternion(0.6873877, -0.00030924418, -0.000444612, 0.7262906)
+bones/31/rotation = Quaternion(-0.61858714, 0.31825584, 0.32900214, 0.6386085)
+bones/32/rotation = Quaternion(-0.17285304, -0.6844686, 0.4923656, 0.50911754)
+bones/33/rotation = Quaternion(0.7058303, -0.0037617255, 0.068581976, 0.7050433)
+bones/34/rotation = Quaternion(0.19062172, -0.039129164, 0.045610167, 0.9798224)
+bones/35/rotation = Quaternion(0.44519094, -0.5493687, 0.4451944, 0.5493643)
+bones/36/rotation = Quaternion(0.6233411, 3.6401397e-07, -2.659815e-07, 0.78195006)
+bones/37/rotation = Quaternion(0.6233422, 4.317472e-07, 6.520876e-08, 0.7819492)
+bones/38/rotation = Quaternion(-1.8626454e-09, 1, 6.787176e-15, -3.6564331e-06)
+bones/39/rotation = Quaternion(0.4320901, -0.53869975, 0.45804656, 0.5597269)
+bones/40/rotation = Quaternion(0.6233408, -0.00094322214, -0.0011836708, 0.78194886)
+bones/41/rotation = Quaternion(0.62334126, 0.0007040969, 0.0008836908, 0.7819492)
+bones/42/rotation = Quaternion(-2.2351774e-08, 1, -9.313135e-09, -3.6443257e-06)
+bones/43/rotation = Quaternion(0.5040573, -0.5115413, 0.4351518, 0.54304206)
+bones/44/rotation = Quaternion(0.62316275, 0.02006156, -0.014925674, 0.7816923)
+bones/45/rotation = Quaternion(0.623342, -0.00037968045, -0.00047648756, 0.78194916)
+bones/46/rotation = Quaternion(-2.095478e-08, 1, -5.587922e-09, -3.6517765e-06)
+bones/47/rotation = Quaternion(0.43534, -0.54135597, 0.45490402, 0.55720305)
+bones/48/rotation = Quaternion(0.62334144, -7.2862304e-06, -9.439949e-06, 0.78194976)
+bones/49/rotation = Quaternion(0.6233412, 0.00066538074, 0.0008341466, 0.78194934)
+bones/50/rotation = Quaternion(-3.7252965e-09, 1, -1.862639e-09, -3.6461884e-06)
+bones/51/rotation = Quaternion(-0.29083863, 0.9496492, 0.11458318, -0.021216905)
+bones/52/rotation = Quaternion(0.21938972, -0.023802647, 0.0053054667, 0.97533244)
+bones/53/rotation = Quaternion(0.687388, 0.00030856516, 0.000444695, 0.7262903)
+bones/55/rotation = Quaternion(0.99899966, 0.03801489, -0.0046871235, 0.023078091)
+bones/56/rotation = Quaternion(0.23835255, 0.0054217232, -0.0015277474, 0.97116244)
+bones/57/rotation = Quaternion(-0.36674494, -0.008229384, 0.0068659927, 0.9302599)
+bones/58/rotation = Quaternion(-0.00014805878, 0.95826775, -0.28587174, -0.00049624353)
+bones/60/rotation = Quaternion(0.61241853, 0.01911794, -0.0023571649, 0.79029906)
+bones/61/rotation = Quaternion(0.6449182, 0.013846148, -0.011615789, 0.76403785)
+bones/62/rotation = Quaternion(-0.41094002, -0.090221755, 0.07503948, 0.90407825)
+bones/63/rotation = Quaternion(-0.00013712303, 0.9643068, -0.26478708, -0.0004993955)
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=489042669]
 transform = Transform3D(0.8660254, 0.40957603, -0.28678823, 0, 0.57357645, 0.81915206, 0.5, -0.7094065, 0.49673176, 0, 10.124207, 0)
@@ -126,4 +139,4 @@ light_energy = 1.5
 shadow_enabled = true
 
 [editable path="training_room"]
-[editable path="CharacterBody3D/pigeon"]
+[editable path="Humanoid/UAL1"]
