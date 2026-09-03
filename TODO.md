@@ -1,8 +1,10 @@
 # TODO
-- [ ] Move character script to extension
+- [ ] Find a better place to perform class level resource instantiation (i.e. things that are common to all instances)
+- [ ] Standardize camera placement?
 - [ ] Animation invocation / interruption
 
 # DONE
+- [x] Move character script to extension
 - [x] Model a proper jello
 - [x] Grass shader
 - [x] Particle system

@@ -2,10 +2,10 @@ const std = @import("std");
 const godot = @import("godot_zig");
 
 const CharacterBody3D = godot.generated.classes.CharacterBody3D;
+const Engine = godot.generated.classes.Engine;
 const Input = godot.generated.classes.Input;
-const InputEvent = godot.generated.classes.InputEvent;
+const InputMap = godot.generated.classes.InputMap;
 const InputEventMouseMotion = godot.generated.classes.InputEventMouseMotion;
-const InputEventMouseButton = godot.generated.classes.InputEventMouseButton;
 const Node = godot.generated.classes.Node;
 const Node3D = godot.generated.classes.Node3D;
 const Object = godot.generated.classes.Object;
@@ -72,6 +72,8 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn ready(self: *Self) callconv(.c) void {
+    if (Engine.singleton().is_editor_hint()) return;
+
     const node = Node.init(self.object);
     node.set_physics_process(true);
     node.set_process_input(true);
@@ -94,6 +96,8 @@ pub fn ready(self: *Self) callconv(.c) void {
 }
 
 pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
+    if (Engine.singleton().is_editor_hint()) return;
+
     const object = Object.init(raw_event);
     if (!object.is_class(self.mouse_motion_class) or Input.singleton().get_mouse_mode() != Input.MouseMode.captured) return;
 
@@ -113,6 +117,8 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
 }
 
 pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
+    if (Engine.singleton().is_editor_hint()) return;
+
     const input = Input.singleton();
     const body = CharacterBody3D.init(self.object);
 
