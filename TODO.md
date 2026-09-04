@@ -1,10 +1,12 @@
 # TODO
-- [ ] Humanoid model
-- [ ] Standardize camera placement?
+- [ ] Proper controller for character input / animation
 - [ ] Animation invocation / interruption
 - [ ] Multi-client set up
+- [ ] Game server
 
 # DONE
+- [x] Standardize camera placement?
+- [x] Humanoid model
 - [x] Find a better place to perform class level resource instantiation (i.e. things that are common to all instances)
 - [x] Move character script to extension
 - [x] Model a proper jello

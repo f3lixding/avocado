@@ -103,6 +103,37 @@ pub const RuntimeNames = struct {
     }
 };
 
+const MovementState = enum {
+    grounded,
+    airborne,
+    sliding,
+};
+
+const Gait = enum {
+    idle,
+    jogging,
+    sprinting,
+};
+
+const AnimationState = enum {
+    idle,
+
+    sprint_enter,
+    sprint,
+    sprint_exit,
+
+    jogging_fwd,
+    jogging_bwd,
+
+    jump,
+};
+
+const State_ = struct {
+    movement_state: MovementState = .idle,
+    gait: Gait = .idle,
+    animation_state: AnimationState = .idle,
+};
+
 const State = enum {
     idle,
 
