@@ -30,13 +30,39 @@ data = PackedVector3Array(1, 1, -1, -1, 1, 1, -1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_hvteh"]
 
 [sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_27ga2"]
-animation = &"Idle"
+animation = &"Crouch_Enter"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_h0wof"]
+animation = &"Drink"
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_fu4bq"]
+switch_mode = 2
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_sbb53"]
+switch_mode = 2
+advance_mode = 2
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_pbtuc"]
+switch_mode = 2
+advance_mode = 2
+advance_expression = "not is_on_floor()"
+
+[sub_resource type="AnimationNodeStateMachine" id="AnimationNodeStateMachine_yokb4"]
+states/Crouch_Enter/node = SubResource("AnimationNodeAnimation_27ga2")
+states/Crouch_Enter/position = Vector2(667.5, 107.96875)
+states/Drink/node = SubResource("AnimationNodeAnimation_h0wof")
+states/Drink/position = Vector2(440.5, 107.734375)
+states/End/position = Vector2(900, 110.109375)
+states/Start/position = Vector2(252, 107.91016)
+transitions = ["Crouch_Enter", "End", SubResource("AnimationNodeStateMachineTransition_fu4bq"), "Start", "Drink", SubResource("AnimationNodeStateMachineTransition_sbb53"), "Drink", "Crouch_Enter", SubResource("AnimationNodeStateMachineTransition_pbtuc")]
 
 [sub_resource type="AnimationNodeBlendTree" id="AnimationNodeBlendTree_haftu"]
-nodes/output/position = Vector2(773.3333, 200)
-nodes/Animation/node = SubResource("AnimationNodeAnimation_27ga2")
-nodes/Animation/position = Vector2(226.66667, 200)
-node_connections = [&"output", 0, &"Animation"]
+graph_offset = Vector2(-11.608643, -137.97168)
+nodes/output/position = Vector2(1160, 180)
+nodes/StateMachine/node = SubResource("AnimationNodeStateMachine_yokb4")
+nodes/StateMachine/position = Vector2(490, 50)
+node_connections = [&"output", 0, &"StateMachine"]
 
 [node name="main" type="Node3D" unique_id=1354692855]
 
@@ -45,22 +71,22 @@ environment = SubResource("Environment_hvteh")
 
 [node name="training_room" parent="." unique_id=1905049532 instance=ExtResource("1_27ga2")]
 
-[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube" parent_id_path=PackedInt32Array(1905049532, 2113024762) index="0" unique_id=1432316772]
+[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube" parent_id_path=PackedInt32Array(1905049532, 1486514959) index="0" unique_id=1432316772]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="training_room/Cube/StaticBody3D" unique_id=892750367]
 shape = SubResource("ConcavePolygonShape3D_27ga2")
 
-[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube_001" parent_id_path=PackedInt32Array(1905049532, 1652399703) index="0" unique_id=184115050]
+[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube_001" parent_id_path=PackedInt32Array(1905049532, 1027223960) index="0" unique_id=184115050]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="training_room/Cube_001/StaticBody3D" unique_id=1127933752]
 shape = SubResource("ConcavePolygonShape3D_h0wof")
 
-[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube_002" parent_id_path=PackedInt32Array(1905049532, 1160559968) index="0" unique_id=112306402]
+[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube_002" parent_id_path=PackedInt32Array(1905049532, 984756962) index="0" unique_id=112306402]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="training_room/Cube_002/StaticBody3D" unique_id=1439085081]
 shape = SubResource("ConcavePolygonShape3D_fu4bq")
 
-[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube_003" parent_id_path=PackedInt32Array(1905049532, 1443868296) index="0" unique_id=1818610686]
+[node name="StaticBody3D" type="StaticBody3D" parent="training_room/Cube_003" parent_id_path=PackedInt32Array(1905049532, 1200223473) index="0" unique_id=1818610686]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="training_room/Cube_003/StaticBody3D" unique_id=528520729]
 transform = Transform3D(1, 0, 0, -2.1684043e-19, 1, 0, 0, 0, 1, 0, 0, 0)
@@ -84,66 +110,9 @@ margin = 0.1
 
 [node name="UAL1" parent="Humanoid" unique_id=793435279 instance=ExtResource("3_27ga2")]
 
-[node name="Skeleton3D" parent="Humanoid/UAL1/Armature" parent_id_path=PackedInt32Array(793435279, 448473660) index="0" unique_id=553280285]
-bones/1/position = Vector3(0.0029998824, 0.08751552, 0.8697833)
-bones/1/rotation = Quaternion(0.76088727, -0.088874035, -0.07457051, 0.6384288)
-bones/3/rotation = Quaternion(0.010249146, 0.00012284912, 0.0002512245, 0.9999475)
-bones/4/rotation = Quaternion(0.08722669, 0.00030838104, 0.00026004243, 0.99618846)
-bones/5/rotation = Quaternion(0.023606475, -0.00023421225, -0.00024459467, 0.9997213)
-bones/6/rotation = Quaternion(-0.032507613, 0.096043676, 0.0013044472, 0.9948454)
-bones/7/rotation = Quaternion(-0.6117612, -0.36506912, -0.4019874, 0.5752207)
-bones/8/rotation = Quaternion(-0.25067818, 0.6692331, -0.5220179, 0.46560153)
-bones/9/rotation = Quaternion(0.24552043, 0.0043026134, 0.0064724665, 0.96936035)
-bones/10/rotation = Quaternion(0.10600874, 0.0063757617, -0.02567434, 0.9940133)
-bones/11/rotation = Quaternion(0.44519043, 0.549369, -0.4451942, 0.5493646)
-bones/12/rotation = Quaternion(0.62334186, 6.134859e-08, 2.1543812e-07, 0.78194946)
-bones/13/rotation = Quaternion(0.62334144, -2.0485645e-07, 6.312424e-08, 0.78194976)
-bones/15/rotation = Quaternion(0.43208978, 0.5386998, -0.45804635, 0.5597271)
-bones/16/rotation = Quaternion(0.62334126, 0.0009434775, 0.0011836428, 0.7819485)
-bones/17/rotation = Quaternion(0.6233411, -0.00070432085, -0.00088335155, 0.78194934)
-bones/19/rotation = Quaternion(0.50405717, 0.5115414, -0.43515158, 0.54304224)
-bones/20/rotation = Quaternion(0.62316287, -0.020061474, 0.014925486, 0.7816923)
-bones/21/rotation = Quaternion(0.6233415, 0.00037982548, 0.0004766172, 0.7819496)
-bones/23/rotation = Quaternion(0.43533966, 0.541356, -0.45490375, 0.55720335)
-bones/24/rotation = Quaternion(0.62334186, 7.39393e-06, 9.580444e-06, 0.78194946)
-bones/25/rotation = Quaternion(0.6233412, -0.00066514494, -0.0008344997, 0.78194934)
-bones/27/rotation = Quaternion(0.29083833, 0.9496493, 0.11458343, 0.02121698)
-bones/28/rotation = Quaternion(0.21938998, 0.023802565, -0.0053047203, 0.97533244)
-bones/29/rotation = Quaternion(0.6873881, -0.00030906757, -0.00044465755, 0.72629017)
-bones/31/rotation = Quaternion(-0.6480608, 0.30379894, 0.33576927, 0.612358)
-bones/32/rotation = Quaternion(-0.28812551, -0.67713284, 0.48379332, 0.47372872)
-bones/33/rotation = Quaternion(0.36799297, -0.14242086, 0.05714874, 0.9170778)
-bones/34/rotation = Quaternion(0.11670906, 0.0029166911, 0.04477862, 0.9921519)
-bones/35/rotation = Quaternion(0.44519085, -0.54936874, 0.44519404, 0.5493645)
-bones/36/rotation = Quaternion(0.62334144, 2.1751784e-07, 6.333713e-08, 0.78194976)
-bones/37/rotation = Quaternion(0.62334156, 1.524512e-07, -2.1200266e-07, 0.7819497)
-bones/38/rotation = Quaternion(-7.4505735e-09, 1, 1.8626738e-09, -3.6499139e-06)
-bones/39/rotation = Quaternion(0.43209013, -0.5386997, 0.45804662, 0.55972695)
-bones/40/rotation = Quaternion(0.6233408, -0.0009435098, -0.0011834028, 0.78194886)
-bones/41/rotation = Quaternion(0.62334144, 0.00070417376, 0.0008831483, 0.78194904)
-bones/42/rotation = Quaternion(-1.8626451e-09, 1, 1.6276917e-14, -3.6443257e-06)
-bones/43/rotation = Quaternion(0.5040568, -0.5115414, 0.43515167, 0.5430425)
-bones/44/rotation = Quaternion(0.6231631, 0.020061096, -0.014925336, 0.78169215)
-bones/45/rotation = Quaternion(0.6233418, -0.00038015255, -0.00047653235, 0.78194934)
-bones/46/rotation = Quaternion(-1.76951e-08, 1, 7.450582e-09, -3.6452573e-06)
-bones/47/rotation = Quaternion(0.4353399, -0.5413559, 0.45490402, 0.5572031)
-bones/48/rotation = Quaternion(0.62334114, -7.5530165e-06, -9.2769305e-06, 0.78195)
-bones/49/rotation = Quaternion(0.6233416, 0.0006649239, 0.0008343264, 0.78194886)
-bones/50/rotation = Quaternion(-4.6566475e-09, 1, -9.313219e-09, -3.648051e-06)
-bones/51/rotation = Quaternion(-0.29083848, 0.9496492, 0.11458354, -0.021217033)
-bones/52/rotation = Quaternion(0.21939008, -0.023802595, 0.0053048474, 0.9753324)
-bones/53/rotation = Quaternion(0.6873882, 0.00030923449, 0.00044453875, 0.7262901)
-bones/55/rotation = Quaternion(0.95519054, 0.11738929, -0.014473775, 0.27133256)
-bones/56/rotation = Quaternion(0.22733286, -0.10917409, 0.025646808, 0.96733814)
-bones/57/rotation = Quaternion(-0.51229846, 0.022804711, 0.09365072, 0.8533814)
-bones/58/rotation = Quaternion(-0.0001371802, 0.9643068, -0.26478708, -0.0004994199)
-bones/60/rotation = Quaternion(0.9896506, -0.13589193, 0.016755095, 0.042946845)
-bones/61/rotation = Quaternion(0.17427506, 0.35036138, -0.06653426, 0.91784984)
-bones/62/rotation = Quaternion(-0.60336107, -0.05423103, -0.16207738, 0.7789387)
-bones/63/rotation = Quaternion(-0.00013706382, 0.9643068, -0.26478708, -0.0004994145)
-
 [node name="AnimationTree" type="AnimationTree" parent="Humanoid/UAL1" unique_id=1429776429]
 tree_root = SubResource("AnimationNodeBlendTree_haftu")
+advance_expression_base_node = NodePath("../..")
 anim_player = NodePath("../AnimationPlayer")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=489042669]

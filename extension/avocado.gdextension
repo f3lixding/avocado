@@ -5,3 +5,5 @@ compatibility_minimum = "4.4"
 [libraries]
 linux.debug.x86_64 = "res://bin/libavocado.so"
 linux.release.x86_64 = "res://bin/libavocado.so"
+macos.debug.arm64 = "res://bin/libavocado.dylib"
+macos.release.arm64 = "res://bin/libavocado.dylib"
