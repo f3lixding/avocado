@@ -1,6 +1,7 @@
 # TODO
 - [ ] Proper controller for character input / animation
-- [ ] Animation invocation / interruption
+- [ ] Add camera shake during sprinting 
+- [ ] Extension hot reload refactor
 - [ ] Multi-client set up
 - [ ] Game server
 

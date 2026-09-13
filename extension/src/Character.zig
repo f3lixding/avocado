@@ -14,7 +14,9 @@ const Vector2 = godot.Vector2;
 const Vector3 = godot.Vector3;
 const SpringArm3D = godot.generated.classes.SpringArm3D;
 const Camera3D = godot.generated.classes.Camera3D;
-const AnimationPlayer = godot.generated.classes.AnimationPlayer;
+const AnimationTree = godot.generated.classes.AnimationTree;
+const AnimationMixer = godot.generated.classes.AnimationMixer;
+const AnimationNodeStateMachinePlayback = godot.generated.classes.AnimationNodeStateMachinePlayback;
 
 const util = @import("util/root.zig");
 const stringNameEqual = util.stringNameEqual;
@@ -29,21 +31,25 @@ pub const RuntimeNames = struct {
     jump: godot.StringName,
     input_event_mouse_motion: godot.StringName,
 
-    anim_idle: godot.StringName,
-    anim_jog_fwd: godot.StringName,
-    anim_jog_bwd: godot.StringName,
-    anim_sprint_enter: godot.StringName,
-    anim_sprint: godot.StringName,
-    anim_sprint_exit: godot.StringName,
-    anim_jump_start: godot.StringName,
-    anim_jump: godot.StringName,
-    anim_jump_land: godot.StringName,
+    // Animation tree param names
+    anim_tree_path: godot.NodePath,
+    movement_playback_param: godot.StringName,
+    locomotion_param: godot.StringName,
+    pistol_aim_param: godot.StringName,
+    aim_blend_param: godot.StringName,
+    // Animation tree states
+    state_locomotion: godot.StringName,
+    state_sprint_enter: godot.StringName,
+    state_sprint: godot.StringName,
+    state_sprint_exit: godot.StringName,
+    state_jump_start: godot.StringName,
+    state_jump: godot.StringName,
+    state_jump_land: godot.StringName,
 
     ready: godot.StringName,
     input: godot.StringName,
     process: godot.StringName,
     physics_process: godot.StringName,
-    animation_player_path: godot.NodePath,
     camera_pivot_path: godot.NodePath,
     spring_arm_path: godot.NodePath,
     camera_path: godot.NodePath,
@@ -56,20 +62,25 @@ pub const RuntimeNames = struct {
             .move_backward = godot.api.godot.stringName("move_backward"),
             .jump = godot.api.godot.stringName("jump"),
             .input_event_mouse_motion = godot.api.godot.stringName("InputEventMouseMotion"),
-            .anim_idle = godot.api.godot.stringName("Idle"),
-            .anim_jog_fwd = godot.api.godot.stringName("Jog_Fwd"),
-            .anim_jog_bwd = godot.api.godot.stringName("Jog_Bwd"),
-            .anim_sprint_enter = godot.api.godot.stringName("Sprint_Enter"),
-            .anim_sprint = godot.api.godot.stringName("Sprint"),
-            .anim_sprint_exit = godot.api.godot.stringName("Sprint_Exit"),
-            .anim_jump_start = godot.api.godot.stringName("Jump_Start"),
-            .anim_jump = godot.api.godot.stringName("Jump"),
-            .anim_jump_land = godot.api.godot.stringName("Jump_Land"),
+
+            .anim_tree_path = godot.api.godot.nodePath("UAL1/AnimationTree"),
+            .movement_playback_param = godot.api.godot.stringName("parameters/StateMachine/playback"),
+            .locomotion_param = godot.api.godot.stringName("parameters/StateMachine/Locomotion/blend_position"),
+            .pistol_aim_param = godot.api.godot.stringName("parameters/PistolAim/blend_position"),
+            .aim_blend_param = godot.api.godot.stringName("parameters/AimBlend/blend_amount"),
+
+            .state_locomotion = godot.api.godot.stringName("Locomotion"),
+            .state_sprint_enter = godot.api.godot.stringName("Sprint_Enter"),
+            .state_sprint = godot.api.godot.stringName("Sprint"),
+            .state_sprint_exit = godot.api.godot.stringName("Sprint_Exit"),
+            .state_jump_start = godot.api.godot.stringName("Jump_Start"),
+            .state_jump = godot.api.godot.stringName("Jump"),
+            .state_jump_land = godot.api.godot.stringName("Jump_Land"),
+
             .ready = godot.api.godot.stringName("_ready"),
             .input = godot.api.godot.stringName("_input"),
             .process = godot.api.godot.stringName("_process"),
             .physics_process = godot.api.godot.stringName("_physics_process"),
-            .animation_player_path = godot.api.godot.nodePath("UAL1/AnimationPlayer"),
             .camera_pivot_path = godot.api.godot.nodePath("CameraPivot"),
             .spring_arm_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D"),
             .camera_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/Camera3D"),
@@ -83,42 +94,36 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_backward);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input_event_mouse_motion);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_idle);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_jog_fwd);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_jog_bwd);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_sprint_enter);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_sprint);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_sprint_exit);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_jump_start);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_jump);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.anim_jump_land);
+
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.anim_tree_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.movement_playback_param);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.locomotion_param);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.pistol_aim_param);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.aim_blend_param);
+
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_locomotion);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_sprint_enter);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_sprint);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_sprint_exit);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_jump_start);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_jump);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_jump_land);
+
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.ready);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.process);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.physics_process);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.animation_player_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_pivot_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.spring_arm_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_path);
     }
 };
 
-const State = enum {
-    idle,
-
-    sprint_enter,
-    sprint,
-    sprint_exit,
-
-    jogging_fwd,
-    jogging_bwd,
-
-    jump,
-};
-
 object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
-animation_player: ?AnimationPlayer = null,
+animation_tree: ?AnimationTree = null,
+animation_playback: ?AnimationNodeStateMachinePlayback = null,
+was_sprinting: bool = false,
 
 spring_arm: ?SpringArm3D = null,
 camera_pivot: ?Node3D = null,
@@ -128,7 +133,6 @@ camera_fov: struct {
     current: f32 = 0,
     target: f32 = 0,
 } = .{},
-state: State = .idle,
 
 const MOVE_SPEED: f32 = 40.0;
 const SPRINT_SPEED_THRESHOLD: f32 = 20.0;
@@ -180,16 +184,39 @@ pub fn ready(self: *Self) callconv(.c) void {
         util.log("camera rig node is null");
     }
 
-    const animation_player_node = node.get_node(self.names.animation_player_path);
-    if (!animation_player_node.isNull()) {
-        const player = AnimationPlayer.init(animation_player_node.object.ptr);
-        player.animation_set_next(
-            self.names.anim_jump_start,
-            self.names.anim_jump,
-        );
-        self.animation_player = player;
+    const anim_tree_node = node.get_node(self.names.anim_tree_path);
+    if (!anim_tree_node.isNull()) {
+        const anim_tree = AnimationTree.init(anim_tree_node.asObject().ptr);
+
+        // Because zig has no inheritance so we have to go directly to the underlying method
+        AnimationMixer.init(anim_tree_node.asObject().ptr).set_active(true);
+
+        var playback_variant = anim_tree.asObject().get(self.names.movement_playback_param);
+        defer playback_variant.destroy();
+        const pbv_ptr = playback_variant.toObjectPtr();
+        if (pbv_ptr) |ptr| {
+            const playback = AnimationNodeStateMachinePlayback.init(ptr);
+            playback.start(self.names.state_locomotion, true);
+
+            anim_tree.asObject().set(
+                self.names.locomotion_param,
+                Vector2{
+                    .x = 0.0,
+                    .y = 0.0,
+                },
+            );
+
+            self.animation_tree = anim_tree;
+            self.animation_playback = playback;
+        } else {
+            const msg = "Playback variant ptr is null";
+            util.log(msg);
+            @panic(msg);
+        }
     } else {
-        util.log("animation_player_node is null");
+        const msg = "AnimationTree node is null";
+        util.log(msg);
+        @panic(msg);
     }
 
     const input = Input.singleton();
@@ -261,45 +288,39 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
         );
     }
 
-    const horizontal_speed = @sqrt(
-        velocity.x * velocity.x + velocity.z * velocity.z,
-    );
-    const next_state: State = if (!is_on_floor or jumped)
-        .jump
-    else if (horizontal_speed > 0 and (self.state == .sprint or self.state == .sprint_exit) and !has_movement_input)
-        .sprint_exit
-    else if (!has_movement_input)
-        .idle
-    else if (z > 0.0)
-        .jogging_bwd
-    else if (horizontal_speed >= SPRINT_SPEED_THRESHOLD)
-        .sprint
-    else
-        .jogging_fwd;
-
-    const state_changed = next_state != self.state;
-    self.state = next_state;
-    self.updateAnimation(state_changed);
     self.updateCameraFovTarget(velocity);
 
     body.set_velocity(velocity);
     _ = body.move_and_slide();
-}
 
-fn updateAnimation(self: *Self, state_changed: bool) void {
-    const player = self.animation_player orelse return;
-    if (!state_changed and player.is_playing()) return;
+    const now_on_floor = body.is_on_floor();
+    const now_velocity = body.get_velocity();
+    const horizontal_speed = @sqrt(now_velocity.x * now_velocity.x + now_velocity.z * now_velocity.z);
 
-    const animation = switch (self.state) {
-        .idle => self.names.anim_idle,
-        .sprint => self.names.anim_sprint,
-        .sprint_exit => self.names.anim_sprint_exit,
-        .jogging_fwd => self.names.anim_jog_fwd,
-        .jogging_bwd => self.names.anim_jog_bwd,
-        .jump => self.names.anim_jump_start,
-        else => return,
-    };
-    player.play(animation, 0.15, 1.0, false);
+    const just_landed = !is_on_floor and now_on_floor;
+    const should_sprint = now_on_floor and has_movement_input and horizontal_speed >= SPRINT_SPEED_THRESHOLD;
+
+    const jog_weight = std.math.clamp(
+        horizontal_speed / SPRINT_SPEED_THRESHOLD,
+        0.0,
+        1.0,
+    );
+    self.animation_tree.?.asObject().set(self.names.locomotion_param, Vector2{
+        .x = x * jog_weight,
+        .y = -z * jog_weight,
+    });
+
+    if (jumped) {
+        self.animation_playback.?.travel(self.names.state_jump_start, true);
+    } else if (just_landed) {
+        self.animation_playback.?.start(self.names.state_jump_land, true);
+    } else if (should_sprint and !self.was_sprinting) {
+        self.animation_playback.?.travel(self.names.state_sprint_enter, true);
+    } else if (!should_sprint and self.was_sprinting) {
+        self.animation_playback.?.travel(self.names.state_sprint_exit, true);
+    }
+
+    self.was_sprinting = should_sprint;
 }
 
 fn updateCameraFovTarget(self: *Self, velocity: Vector3) void {
