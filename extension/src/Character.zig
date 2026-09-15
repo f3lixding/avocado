@@ -54,6 +54,7 @@ pub const RuntimeNames = struct {
     physics_process: godot.StringName,
     camera_pivot_path: godot.NodePath,
     spring_arm_path: godot.NodePath,
+    camera_shake_node_path: godot.NodePath,
     camera_path: godot.NodePath,
 
     pub fn init() RuntimeNames {
@@ -86,7 +87,8 @@ pub const RuntimeNames = struct {
             .physics_process = godot.api.godot.stringName("_physics_process"),
             .camera_pivot_path = godot.api.godot.nodePath("CameraPivot"),
             .spring_arm_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D"),
-            .camera_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/Camera3D"),
+            .camera_shake_node_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/CameraShake"),
+            .camera_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/CameraShake/Camera3D"),
         };
     }
 
@@ -119,6 +121,7 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.physics_process);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_pivot_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.spring_arm_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_shake_node_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_path);
     }
 };
@@ -128,6 +131,7 @@ names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
 animation_playback: ?AnimationNodeStateMachinePlayback = null,
 was_sprinting: bool = false,
+pending_landing_shake: f64 = 0.0,
 locomotion_blend: Vector2 = .{},
 
 spring_arm: ?SpringArm3D = null,
@@ -138,6 +142,9 @@ camera_fov: struct {
     current: f32 = 0,
     target: f32 = 0,
 } = .{},
+camera_shake_node: ?Node3D = null,
+camera_shake_time: f32 = 0.0,
+camera_shake_strength: f32 = 0.0,
 
 const MOVE_SPEED: f32 = 40.0;
 const SPRINT_SPEED_THRESHOLD: f32 = 15.0;
@@ -149,6 +156,7 @@ const TERMINAL_VELOCITY: f32 = 50.0;
 const MOUSE_SENSITIVITY: f64 = 0.0025;
 const MINIMUM_PITCH: f64 = -60.0;
 const MAXIMUM_PITCH: f64 = 45.0;
+const JUMP_DISTURBANCE_DURATION: f64 = 0.5;
 
 pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*anyopaque) Self {
     const names: *RuntimeNames = @ptrCast(@alignCast(class_userdata.?));
@@ -170,10 +178,12 @@ pub fn ready(self: *Self) callconv(.c) void {
 
     const camera_pivot_node = node.get_node(self.names.camera_pivot_path);
     const spring_arm_node = node.get_node(self.names.spring_arm_path);
+    const camera_shake_node = node.get_node(self.names.camera_shake_node_path);
     const camera_node = node.get_node(self.names.camera_path);
-    if (!camera_pivot_node.isNull() and !spring_arm_node.isNull() and !camera_node.isNull()) {
+    if (!camera_pivot_node.isNull() and !spring_arm_node.isNull() and !camera_shake_node.isNull() and !camera_node.isNull()) {
         self.camera_pivot = Node3D.init(camera_pivot_node.object.ptr);
         self.spring_arm = SpringArm3D.init(spring_arm_node.object.ptr);
+        self.camera_shake_node = Node3D.init(camera_shake_node.object.ptr);
         self.camera = Camera3D.init(camera_node.object.ptr);
 
         // Never let the spring arm retract because it hit its own character.
@@ -301,7 +311,7 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
         self.animation_tree.?.asObject().set(self.names.jump_land_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
     }
 
-    self.updateCameraFovTarget(velocity);
+    self.updateCameraFov(velocity);
 
     body.set_velocity(velocity);
     _ = body.move_and_slide();
@@ -311,6 +321,10 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     const horizontal_speed = @sqrt(now_velocity.x * now_velocity.x + now_velocity.z * now_velocity.z);
 
     const just_landed = !is_on_floor and now_on_floor;
+
+    if (just_landed)
+        self.pending_landing_shake = JUMP_DISTURBANCE_DURATION;
+
     should_sprint = now_on_floor and has_movement_input and is_shift_held;
 
     const jog_weight = std.math.clamp(
@@ -358,7 +372,7 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     self.was_sprinting = should_sprint;
 }
 
-fn updateCameraFovTarget(self: *Self, velocity: Vector3) void {
+fn updateCameraFov(self: *Self, velocity: Vector3) void {
     // Ignore vertical velocity so jumping and falling do not alter the FOV.
     const horizontal_speed = @sqrt(
         velocity.x * velocity.x + velocity.z * velocity.z,
@@ -366,6 +380,50 @@ fn updateCameraFovTarget(self: *Self, velocity: Vector3) void {
 
     const speed_ratio = std.math.clamp(horizontal_speed / MOVE_SPEED, 0.0, 1.0);
     self.camera_fov.target = self.camera_fov.setting + 20.0 * speed_ratio;
+}
+
+fn disturbCamera(self: *Self, delta: f32, target_strength: f32) void {
+    const SHAKE_ATTACK: f32 = 8.0;
+    const SHAKE_DECAY: f32 = 1.8;
+    const SHAKE_FREQUENCY: f32 = 5.0;
+    const MAX_POSITION_SHAKE: f32 = 0.025;
+    const MAX_PITCH_SHAKE: f32 = std.math.degreesToRadians(0.5);
+    const MAX_YAW_SHAKE: f32 = std.math.degreesToRadians(0.5);
+    const MAX_ROLL_SHAKE: f32 = std.math.degreesToRadians(0.5);
+    const TAU: f32 = 2.0 * std.math.pi;
+
+    const node = self.camera_shake_node orelse return;
+    self.camera_shake_time += delta;
+
+    const rate = if (target_strength > self.camera_shake_strength)
+        SHAKE_ATTACK
+    else
+        SHAKE_DECAY;
+    self.camera_shake_strength = moveToward(
+        self.camera_shake_strength,
+        std.math.clamp(target_strength, 0.0, 1.0),
+        rate * delta,
+    );
+
+    // Squaring gives weak shakes a softer response while preserving the peak.
+    const strength = self.camera_shake_strength * self.camera_shake_strength;
+    const phase = self.camera_shake_time * TAU * SHAKE_FREQUENCY;
+
+    const position_x = @sin(phase * 1.07 + 0.4);
+    const position_y = @sin(phase * 0.83 + 1.7);
+    const pitch = @sin(phase * 1.19 + 2.3);
+    const yaw = @sin(phase * 0.91 + 3.1);
+    const roll = @sin(phase * 1.31 + 4.2);
+
+    var position = node.get_position();
+    position.x = position_x * MAX_POSITION_SHAKE * strength;
+    position.y = position_y * MAX_POSITION_SHAKE * strength;
+    node.set_position(position);
+    node.set_rotation(.{
+        .x = pitch * MAX_PITCH_SHAKE * strength,
+        .y = yaw * MAX_YAW_SHAKE * strength,
+        .z = roll * MAX_ROLL_SHAKE * strength,
+    });
 }
 
 pub fn process(self: *Self, delta: f64) callconv(.c) void {
@@ -382,6 +440,24 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
         self.camera_fov.current = new_fov;
         camera.set_fov(@floatCast(new_fov));
     }
+
+    const body = CharacterBody3D.init(self.object);
+    const velocity = body.get_velocity();
+    const horizontal_speed = @sqrt(
+        velocity.x * velocity.x + velocity.z * velocity.z,
+    );
+    const shake_target = blk: {
+        if (self.was_sprinting) break :blk std.math.clamp(horizontal_speed / MOVE_SPEED, 0.0, 1.0);
+
+        if (self.pending_landing_shake > 0.0) {
+            self.pending_landing_shake = @max(self.pending_landing_shake - delta, 0.0);
+            break :blk 0.5;
+        }
+
+        break :blk 0.0;
+    };
+
+    self.disturbCamera(@floatCast(delta), shake_target);
 }
 
 fn basisColumnX(basis: godot.Basis) Vector3 {
