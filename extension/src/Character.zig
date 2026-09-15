@@ -128,6 +128,7 @@ names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
 animation_playback: ?AnimationNodeStateMachinePlayback = null,
 was_sprinting: bool = false,
+locomotion_blend: Vector2 = .{},
 
 spring_arm: ?SpringArm3D = null,
 camera_pivot: ?Node3D = null,
@@ -139,7 +140,7 @@ camera_fov: struct {
 } = .{},
 
 const MOVE_SPEED: f32 = 40.0;
-const SPRINT_SPEED_THRESHOLD: f32 = 20.0;
+const SPRINT_SPEED_THRESHOLD: f32 = 15.0;
 const ACCELERATION: f32 = 20.0;
 const AIR_CONTROL: f32 = 0.35;
 const JUMP_VELOCITY: f32 = 5.0;
@@ -317,10 +318,24 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
         0.0,
         1.0,
     );
-    self.animation_tree.?.asObject().set(self.names.locomotion_param, Vector2{
+
+    const target_blend = Vector2{
         .x = x * jog_weight,
         .y = -z * jog_weight,
-    });
+    };
+    const max_blend_delta = step / SPRINT_SPEED_THRESHOLD;
+
+    self.locomotion_blend.x = moveToward(
+        self.locomotion_blend.x,
+        target_blend.x,
+        max_blend_delta,
+    );
+    self.locomotion_blend.y = moveToward(
+        self.locomotion_blend.y,
+        target_blend.y,
+        max_blend_delta,
+    );
+    self.animation_tree.?.asObject().set(self.names.locomotion_param, self.locomotion_blend);
 
     if (jumped) {
         self.animation_playback.?.travel(self.names.state_jump_start, true);

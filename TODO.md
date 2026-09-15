@@ -1,11 +1,12 @@
 # TODO
-- [ ] Proper controller for character input / animation
 - [ ] Add camera shake during sprinting 
+- [ ] Add aiming blending
 - [ ] Extension hot reload refactor
 - [ ] Multi-client set up
 - [ ] Game server
 
 # DONE
+- [x] Proper controller for character input / animation
 - [x] Standardize camera placement?
 - [x] Humanoid model
 - [x] Find a better place to perform class level resource instantiation (i.e. things that are common to all instances)
