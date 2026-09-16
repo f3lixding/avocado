@@ -31,6 +31,7 @@ pub const RuntimeNames = struct {
     move_backward: godot.StringName,
     jump: godot.StringName,
     shift: godot.StringName,
+    aim: godot.StringName,
     input_event_mouse_motion: godot.StringName,
 
     // Animation tree param names
@@ -65,6 +66,7 @@ pub const RuntimeNames = struct {
             .move_backward = godot.api.godot.stringName("move_backward"),
             .jump = godot.api.godot.stringName("jump"),
             .shift = godot.api.godot.stringName("shift"),
+            .aim = godot.api.godot.stringName("aim"),
             .input_event_mouse_motion = godot.api.godot.stringName("InputEventMouseMotion"),
 
             .anim_tree_path = godot.api.godot.nodePath("UAL1/AnimationTree"),
@@ -99,6 +101,7 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.move_backward);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.shift);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.aim);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input_event_mouse_motion);
 
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.anim_tree_path);
@@ -133,6 +136,9 @@ animation_playback: ?AnimationNodeStateMachinePlayback = null,
 was_sprinting: bool = false,
 pending_landing_shake: f64 = 0.0,
 locomotion_blend: Vector2 = .{},
+aim_weight: f32 = 0.0,
+// updated for process to use for aim
+x_view_angle: f32 = 0.0,
 
 spring_arm: ?SpringArm3D = null,
 camera_pivot: ?Node3D = null,
@@ -251,12 +257,20 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
 
     const camera_pivot = self.camera_pivot orelse return;
     var rotation = camera_pivot.get_rotation();
-    rotation.x = @floatCast(std.math.clamp(
+    const min_pitch_rad: f64 = std.math.degreesToRadians(MINIMUM_PITCH);
+    const max_pitch_rad: f64 = std.math.degreesToRadians(MAXIMUM_PITCH);
+    const x_rotation = std.math.clamp(
         @as(f64, rotation.x) - @as(f64, relative.y) * MOUSE_SENSITIVITY,
-        std.math.degreesToRadians(MINIMUM_PITCH),
-        std.math.degreesToRadians(MAXIMUM_PITCH),
-    ));
+        min_pitch_rad,
+        max_pitch_rad,
+    );
+    rotation.x = @floatCast(x_rotation);
     camera_pivot.set_rotation(rotation);
+
+    self.x_view_angle = @floatCast(if (x_rotation < 0.0)
+        x_rotation / -min_pitch_rad
+    else
+        x_rotation / max_pitch_rad);
 }
 
 pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
@@ -458,6 +472,26 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
     };
 
     self.disturbCamera(@floatCast(delta), shake_target);
+
+    const input = Input.singleton();
+    const is_aiming = input.is_action_pressed(self.names.aim, false);
+
+    var buf: [256]u8 = undefined;
+    const fmt_buf = std.fmt.bufPrintZ(&buf, "x angle: {d}\n", .{self.x_view_angle}) catch @panic("");
+    util.log(fmt_buf);
+
+    const target_aim_weight: f32 = blk: {
+        if (is_aiming) {
+            self.animation_tree.?.asObject().set(
+                self.names.pistol_aim_param,
+                self.x_view_angle,
+            );
+            break :blk 1.0;
+        }
+        break :blk 0.0;
+    };
+    self.aim_weight = moveToward(self.aim_weight, target_aim_weight, 8.0 * @as(f32, @floatCast(delta)));
+    self.animation_tree.?.asObject().set(self.names.aim_blend_param, self.aim_weight);
 }
 
 fn basisColumnX(basis: godot.Basis) Vector3 {
