@@ -476,10 +476,6 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
     const input = Input.singleton();
     const is_aiming = input.is_action_pressed(self.names.aim, false);
 
-    var buf: [256]u8 = undefined;
-    const fmt_buf = std.fmt.bufPrintZ(&buf, "x angle: {d}\n", .{self.x_view_angle}) catch @panic("");
-    util.log(fmt_buf);
-
     const target_aim_weight: f32 = blk: {
         if (is_aiming) {
             self.animation_tree.?.asObject().set(

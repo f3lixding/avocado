@@ -1,10 +1,9 @@
 # TODO
-- [ ] Add aiming blending
-- [ ] Extension hot reload refactor
 - [ ] Multi-client set up
 - [ ] Game server
 
 # DONE
+- [x] Add aiming blending
 - [x] Add camera shake during sprinting 
 - [x] Proper controller for character input / animation
 - [x] Standardize camera placement?
