@@ -1,8 +1,7 @@
 # TODO
-- [ ] Multi-client set up
-- [ ] Game server
 
 # DONE
+- [x] Multi-client set up
 - [x] Add aiming blending
 - [x] Add camera shake during sprinting 
 - [x] Proper controller for character input / animation
