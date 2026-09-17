@@ -129,6 +129,14 @@ pub const RuntimeNames = struct {
     }
 };
 
+pub const AnimState = enum(i64) {
+    locomotion = 0,
+    sprint_enter,
+    sprint,
+    jump_start,
+    jump,
+};
+
 object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
@@ -139,6 +147,10 @@ locomotion_blend: Vector2 = .{},
 aim_weight: f32 = 0.0,
 // updated for process to use for aim
 x_view_angle: f32 = 0.0,
+// Replicated animation state and event sequences.
+anim_state: AnimState = .locomotion,
+landing_sequence: i64 = 0,
+sprint_exit_sequence: i64 = 0,
 
 spring_arm: ?SpringArm3D = null,
 camera_pivot: ?Node3D = null,
@@ -151,6 +163,8 @@ camera_fov: struct {
 camera_shake_node: ?Node3D = null,
 camera_shake_time: f32 = 0.0,
 camera_shake_strength: f32 = 0.0,
+
+local_input_enabled: bool = false,
 
 const MOVE_SPEED: f32 = 40.0;
 const SPRINT_SPEED_THRESHOLD: f32 = 15.0;
@@ -178,9 +192,18 @@ pub fn ready(self: *Self) callconv(.c) void {
     if (Engine.singleton().is_editor_hint()) return;
 
     const node = Node.init(self.object);
-    node.set_physics_process(true);
-    node.set_process(true);
-    node.set_process_input(true);
+    const multiplayer = node.get_multiplayer();
+
+    self.local_input_enabled = multiplayer.get_unique_id() == node.get_multiplayer_authority();
+
+    node.set_physics_process(self.local_input_enabled);
+    node.set_process_input(self.local_input_enabled);
+    node.set_process(self.local_input_enabled);
+
+    if (self.local_input_enabled) {
+        const input = Input.singleton();
+        input.set_mouse_mode(Input.MouseMode.captured);
+    }
 
     const camera_pivot_node = node.get_node(self.names.camera_pivot_path);
     const spring_arm_node = node.get_node(self.names.spring_arm_path);
@@ -191,6 +214,8 @@ pub fn ready(self: *Self) callconv(.c) void {
         self.spring_arm = SpringArm3D.init(spring_arm_node.object.ptr);
         self.camera_shake_node = Node3D.init(camera_shake_node.object.ptr);
         self.camera = Camera3D.init(camera_node.object.ptr);
+
+        self.camera.?.set_current(self.local_input_enabled);
 
         // Never let the spring arm retract because it hit its own character.
         const character_collision = CollisionObject3D.init(self.object);
@@ -239,9 +264,6 @@ pub fn ready(self: *Self) callconv(.c) void {
         util.log(msg);
         @panic(msg);
     }
-
-    const input = Input.singleton();
-    input.set_mouse_mode(Input.MouseMode.captured);
 }
 
 pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
@@ -366,24 +388,130 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     self.animation_tree.?.asObject().set(self.names.locomotion_param, self.locomotion_blend);
 
     if (jumped) {
-        self.animation_playback.?.travel(self.names.state_jump_start, true);
+        self.setAnimationState(@intFromEnum(AnimState.jump_start));
     } else if (just_landed) {
-        self.animation_playback.?.start(self.names.state_locomotion, true);
-        self.animation_tree.?.asObject().set(
-            self.names.jump_land_oneshot,
-            @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
-        );
+        self.setAnimationState(@intFromEnum(AnimState.locomotion));
+        self.setLandingSequence(self.landing_sequence + 1);
     } else if (should_sprint and !self.was_sprinting) {
-        self.animation_playback.?.start(self.names.state_sprint_enter, true);
+        self.setAnimationState(@intFromEnum(AnimState.sprint_enter));
     } else if (!should_sprint and self.was_sprinting) {
-        self.animation_playback.?.start(self.names.state_locomotion, true);
-        self.animation_tree.?.asObject().set(
-            self.names.sprint_exit_oneshot,
-            @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
-        );
+        self.setAnimationState(@intFromEnum(AnimState.locomotion));
+        self.setSprintExitSequence(self.sprint_exit_sequence + 1);
     }
 
     self.was_sprinting = should_sprint;
+}
+
+pub fn process(self: *Self, delta: f64) callconv(.c) void {
+    if (Engine.singleton().is_editor_hint()) return;
+
+    const camera = self.camera orelse return;
+    const max_delta = 40.0 * @as(f32, @floatCast(delta));
+    const new_fov = moveToward(
+        self.camera_fov.current,
+        self.camera_fov.target,
+        max_delta,
+    );
+    if (new_fov != self.camera_fov.current) {
+        self.camera_fov.current = new_fov;
+        camera.set_fov(@floatCast(new_fov));
+    }
+
+    const body = CharacterBody3D.init(self.object);
+    const velocity = body.get_velocity();
+    const horizontal_speed = @sqrt(
+        velocity.x * velocity.x + velocity.z * velocity.z,
+    );
+    const shake_target = blk: {
+        if (self.was_sprinting) break :blk std.math.clamp(horizontal_speed / MOVE_SPEED, 0.0, 1.0);
+
+        if (self.pending_landing_shake > 0.0) {
+            self.pending_landing_shake = @max(self.pending_landing_shake - delta, 0.0);
+            break :blk 0.5;
+        }
+
+        break :blk 0.0;
+    };
+
+    self.disturbCamera(@floatCast(delta), shake_target);
+
+    const input = Input.singleton();
+    const is_aiming = input.is_action_pressed(self.names.aim, false);
+
+    const target_aim_weight: f32 = blk: {
+        if (is_aiming) {
+            self.animation_tree.?.asObject().set(
+                self.names.pistol_aim_param,
+                self.x_view_angle,
+            );
+            break :blk 1.0;
+        }
+        break :blk 0.0;
+    };
+    self.aim_weight = moveToward(self.aim_weight, target_aim_weight, 8.0 * @as(f32, @floatCast(delta)));
+    self.animation_tree.?.asObject().set(self.names.aim_blend_param, self.aim_weight);
+}
+
+pub fn setAnimationState(self: *Self, value: i64) callconv(.c) void {
+    const state: AnimState = switch (value) {
+        0 => .locomotion,
+        1 => .sprint_enter,
+        2 => .sprint,
+        3 => .jump_start,
+        4 => .jump,
+        else => return,
+    };
+    if (state == self.anim_state) return;
+
+    self.anim_state = state;
+    const playback = self.animation_playback orelse return;
+    const name = switch (state) {
+        .locomotion => self.names.state_locomotion,
+        .sprint_enter => self.names.state_sprint_enter,
+        .sprint => self.names.state_sprint,
+        .jump_start => self.names.state_jump_start,
+        .jump => self.names.state_jump,
+    };
+
+    if (state == .jump_start) {
+        playback.travel(name, true);
+    } else {
+        playback.start(name, true);
+    }
+}
+
+pub fn getAnimationState(self: *Self) callconv(.c) i64 {
+    return @intFromEnum(self.anim_state);
+}
+
+pub fn setLandingSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.landing_sequence) return;
+    self.landing_sequence = value;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.jump_land_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
+}
+
+pub fn getLandingSequence(self: *Self) callconv(.c) i64 {
+    return self.landing_sequence;
+}
+
+pub fn setSprintExitSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.sprint_exit_sequence) return;
+    self.sprint_exit_sequence = value;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.sprint_exit_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
+}
+
+pub fn getSprintExitSequence(self: *Self) callconv(.c) i64 {
+    return self.sprint_exit_sequence;
 }
 
 fn updateCameraFov(self: *Self, velocity: Vector3) void {
@@ -438,56 +566,6 @@ fn disturbCamera(self: *Self, delta: f32, target_strength: f32) void {
         .y = yaw * MAX_YAW_SHAKE * strength,
         .z = roll * MAX_ROLL_SHAKE * strength,
     });
-}
-
-pub fn process(self: *Self, delta: f64) callconv(.c) void {
-    if (Engine.singleton().is_editor_hint()) return;
-
-    const camera = self.camera orelse return;
-    const max_delta = 40.0 * @as(f32, @floatCast(delta));
-    const new_fov = moveToward(
-        self.camera_fov.current,
-        self.camera_fov.target,
-        max_delta,
-    );
-    if (new_fov != self.camera_fov.current) {
-        self.camera_fov.current = new_fov;
-        camera.set_fov(@floatCast(new_fov));
-    }
-
-    const body = CharacterBody3D.init(self.object);
-    const velocity = body.get_velocity();
-    const horizontal_speed = @sqrt(
-        velocity.x * velocity.x + velocity.z * velocity.z,
-    );
-    const shake_target = blk: {
-        if (self.was_sprinting) break :blk std.math.clamp(horizontal_speed / MOVE_SPEED, 0.0, 1.0);
-
-        if (self.pending_landing_shake > 0.0) {
-            self.pending_landing_shake = @max(self.pending_landing_shake - delta, 0.0);
-            break :blk 0.5;
-        }
-
-        break :blk 0.0;
-    };
-
-    self.disturbCamera(@floatCast(delta), shake_target);
-
-    const input = Input.singleton();
-    const is_aiming = input.is_action_pressed(self.names.aim, false);
-
-    const target_aim_weight: f32 = blk: {
-        if (is_aiming) {
-            self.animation_tree.?.asObject().set(
-                self.names.pistol_aim_param,
-                self.x_view_angle,
-            );
-            break :blk 1.0;
-        }
-        break :blk 0.0;
-    };
-    self.aim_weight = moveToward(self.aim_weight, target_aim_weight, 8.0 * @as(f32, @floatCast(delta)));
-    self.animation_tree.?.asObject().set(self.names.aim_blend_param, self.aim_weight);
 }
 
 fn basisColumnX(basis: godot.Basis) Vector3 {

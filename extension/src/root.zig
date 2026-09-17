@@ -26,6 +26,30 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     );
 
     godot.class.NativeClass(Character, "CharacterBody3D", "Character").registerWithUserdata(&character_runtime_names);
+    godot.class.registerProperty(
+        Character,
+        "Character",
+        "animation_state",
+        .int,
+        Character.getAnimationState,
+        Character.setAnimationState,
+    );
+    godot.class.registerProperty(
+        Character,
+        "Character",
+        "landing_sequence",
+        .int,
+        Character.getLandingSequence,
+        Character.setLandingSequence,
+    );
+    godot.class.registerProperty(
+        Character,
+        "Character",
+        "sprint_exit_sequence",
+        .int,
+        Character.getSprintExitSequence,
+        Character.setSprintExitSequence,
+    );
 }
 
 fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {

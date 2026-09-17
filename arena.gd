@@ -5,6 +5,7 @@ const MAX_CLIENT := 16
 const PLAYER_SCENE := preload("res://player.tscn")
 
 @onready var players: Node3D = $Players
+@onready var player_spawner: MultiplayerSpawner = $PlayerSpawner
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -13,6 +14,8 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+
+	player_spawner.spawn_function = _create_player
 
 	var args := OS.get_cmdline_user_args()
 
@@ -26,6 +29,15 @@ func _ready() -> void:
 			connect_to_server(address)
 			return
 
+func _create_player(data: Dictionary) -> Node:
+	var player := PLAYER_SCENE.instantiate()
+	var peer_id = data["peer_id"]
+	var pos = data["position"]
+	player.name = str(peer_id)
+	player.set_multiplayer_authority(peer_id, true)
+	player.position = pos
+
+	return player
 
 func _on_peer_connected(peer_id: int) -> void: 
 	print("Peer connected: ", peer_id)
@@ -76,6 +88,13 @@ func connect_to_server(address: String) -> void:
 	print("Client created at %s:%d" % [address, PORT])
 
 func spawn_player(peer_id: int) -> void:
-	var player := PLAYER_SCENE.instantiate()
-	player.name = str(peer_id)
-	players.add_child(player)
+	var pos := Vector3(
+		players.get_child_count(false) * 2.0,
+		2.0,
+		0.0,
+	)
+
+	player_spawner.spawn({
+		"peer_id": peer_id,
+		"position": pos,
+	})
