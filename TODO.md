@@ -2,6 +2,7 @@
 - [ ] Attack animation (or just extra interactivity)
 - [ ] Tweening
 - [ ] UI / menu
+- [ ] Sound
 
 # DONE
 - [x] Clean up extension leaks

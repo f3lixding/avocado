@@ -166,9 +166,9 @@ camera_shake_strength: f32 = 0.0,
 
 local_input_enabled: bool = false,
 
-const MOVE_SPEED: f32 = 40.0;
+const TOP_SPRINT_SPEED: f32 = 20.0;
 const SPRINT_SPEED_THRESHOLD: f32 = 15.0;
-const ACCELERATION: f32 = 20.0;
+const ACCELERATION: f32 = 10.0;
 const AIR_CONTROL: f32 = 0.35;
 const JUMP_VELOCITY: f32 = 5.0;
 const GRAVITY: f32 = 9.8;
@@ -327,7 +327,7 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
 
     const control: f32 = if (is_on_floor) 3.0 else AIR_CONTROL;
     const step = ACCELERATION * control * @as(f32, @floatCast(delta));
-    const top_speed = if (should_sprint) MOVE_SPEED else SPRINT_SPEED_THRESHOLD;
+    const top_speed = if (should_sprint) TOP_SPRINT_SPEED else SPRINT_SPEED_THRESHOLD;
     velocity.x = moveToward(velocity.x, direction.x * top_speed, step);
     velocity.z = moveToward(velocity.z, direction.z * top_speed, step);
 
@@ -409,11 +409,17 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
 pub fn process(self: *Self, delta: f64) callconv(.c) void {
     if (Engine.singleton().is_editor_hint()) return;
 
+    const input = Input.singleton();
+    const is_aiming = input.is_action_pressed(self.names.aim, false);
+
     const camera = self.camera orelse return;
-    const max_delta = 40.0 * @as(f32, @floatCast(delta));
+    const max_delta = if (is_aiming or self.camera_fov.current < self.camera_fov.setting)
+        500.0 * @as(f32, @floatCast(delta))
+    else
+        40.0 * @as(f32, @floatCast(delta));
     const new_fov = moveToward(
         self.camera_fov.current,
-        self.camera_fov.target,
+        if (is_aiming) 30.0 else self.camera_fov.target,
         max_delta,
     );
     if (new_fov != self.camera_fov.current) {
@@ -427,7 +433,7 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
         velocity.x * velocity.x + velocity.z * velocity.z,
     );
     const shake_target = blk: {
-        if (self.was_sprinting) break :blk std.math.clamp(horizontal_speed / MOVE_SPEED, 0.0, 1.0);
+        if (self.was_sprinting) break :blk std.math.clamp(horizontal_speed / TOP_SPRINT_SPEED, 0.0, 1.0);
 
         if (self.pending_landing_shake > 0.0) {
             self.pending_landing_shake = @max(self.pending_landing_shake - delta, 0.0);
@@ -439,9 +445,6 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
 
     self.disturbCamera(@floatCast(delta), shake_target);
 
-    const input = Input.singleton();
-    const is_aiming = input.is_action_pressed(self.names.aim, false);
-
     const target_aim_weight: f32 = blk: {
         if (is_aiming) {
             self.animation_tree.?.asObject().set(
@@ -452,6 +455,7 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
         }
         break :blk 0.0;
     };
+
     self.aim_weight = moveToward(self.aim_weight, target_aim_weight, 8.0 * @as(f32, @floatCast(delta)));
     self.animation_tree.?.asObject().set(self.names.aim_blend_param, self.aim_weight);
 }
@@ -524,7 +528,7 @@ fn updateCameraFov(self: *Self, velocity: Vector3) void {
         velocity.x * velocity.x + velocity.z * velocity.z,
     );
 
-    const speed_ratio = std.math.clamp(horizontal_speed / MOVE_SPEED, 0.0, 1.0);
+    const speed_ratio = std.math.clamp(horizontal_speed / TOP_SPRINT_SPEED, 0.0, 1.0);
     self.camera_fov.target = self.camera_fov.setting + 20.0 * speed_ratio;
 }
 
