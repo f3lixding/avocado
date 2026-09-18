@@ -193,6 +193,10 @@ pub fn ready(self: *Self) callconv(.c) void {
 
     const node = Node.init(self.object);
     const multiplayer = node.get_multiplayer();
+    defer {
+        const RefCounted = godot.generated.classes.RefCounted;
+        _ = RefCounted.init(multiplayer.asObject().ptr).unreference();
+    }
 
     self.local_input_enabled = multiplayer.get_unique_id() == node.get_multiplayer_authority();
 

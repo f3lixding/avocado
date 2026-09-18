@@ -23,6 +23,10 @@ func _ready() -> void:
 		start_server()
 		return
 
+	if "--test-single" in args:
+		spawn_player(multiplayer.get_unique_id())
+		return
+
 	for argument in args: 
 		if argument.begins_with("--connect="):
 			var address := argument.trim_prefix("--connect=")
@@ -42,7 +46,7 @@ func _create_player(data: Dictionary) -> Node:
 func _on_peer_connected(peer_id: int) -> void: 
 	print("Peer connected: ", peer_id)
 
-	if multiplayer.is_server(): 
+	if multiplayer.is_server():
 		spawn_player(peer_id)
 
 func _on_peer_disconnected(peer_id: int) -> void:

@@ -1,6 +1,12 @@
 # TODO
+- [ ] Attack animation (or just extra interactivity)
+- [ ] Tweening
+- [ ] UI / menu
 
 # DONE
+- [x] Clean up extension leaks
+- [x] Camera placement adjustment
+- [x] Restore easy test setup
 - [x] Multi-client set up
 - [x] Add aiming blending
 - [x] Add camera shake during sprinting 
