@@ -14,6 +14,7 @@ const Vector2 = godot.Vector2;
 const Vector3 = godot.Vector3;
 const SpringArm3D = godot.generated.classes.SpringArm3D;
 const Camera3D = godot.generated.classes.Camera3D;
+const CameraAttributesPractical = godot.generated.classes.CameraAttributesPractical;
 const AnimationTree = godot.generated.classes.AnimationTree;
 const AnimationMixer = godot.generated.classes.AnimationMixer;
 const AnimationNodeStateMachinePlayback = godot.generated.classes.AnimationNodeStateMachinePlayback;
@@ -155,6 +156,7 @@ sprint_exit_sequence: i64 = 0,
 spring_arm: ?SpringArm3D = null,
 camera_pivot: ?Node3D = null,
 camera: ?Camera3D = null,
+camera_attr_practical: ?CameraAttributesPractical = null,
 camera_fov: struct {
     setting: f32 = 0,
     current: f32 = 0,
@@ -186,7 +188,13 @@ pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*
     };
 }
 
-pub fn deinit(_: *Self) void {}
+pub fn deinit(self: *Self) void {
+    if (self.camera_attr_practical) |attr| {
+        const RefCounted = godot.generated.classes.RefCounted;
+        _ = RefCounted.init(attr.asObject().ptr).unreference();
+        self.camera_attr_practical = null;
+    }
+}
 
 pub fn ready(self: *Self) callconv(.c) void {
     if (Engine.singleton().is_editor_hint()) return;
@@ -230,6 +238,20 @@ pub fn ready(self: *Self) callconv(.c) void {
             .setting = initial_fov,
             .target = initial_fov,
         };
+
+        // dof blur
+        const camera_attr = self.camera.?.get_attributes();
+        if (!camera_attr.isNull()) {
+            self.camera_attr_practical = CameraAttributesPractical.init(camera_attr.asObject().ptr);
+            self.camera_attr_practical.?.set_dof_blur_near_distance(10.0);
+            self.camera_attr_practical.?.set_dof_blur_near_transition(5.0);
+            self.camera_attr_practical.?.set_dof_blur_amount(0.2);
+            self.camera_attr_practical.?.set_dof_blur_near_enabled(false);
+        } else {
+            const msg = "Failed to retrieve camera practical attr";
+            util.log(msg);
+            @panic(msg);
+        }
     } else {
         util.log("camera rig node is null");
     }
@@ -411,6 +433,8 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
 
     const input = Input.singleton();
     const is_aiming = input.is_action_pressed(self.names.aim, false);
+
+    self.camera_attr_practical.?.set_dof_blur_near_enabled(is_aiming);
 
     const camera = self.camera orelse return;
     const max_delta = if (is_aiming or self.camera_fov.current < self.camera_fov.setting)
