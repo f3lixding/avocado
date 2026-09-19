@@ -1,6 +1,11 @@
 # TODO
+- [ ] Turn animation
 - [ ] Attack animation (or just extra interactivity)
-- [ ] Tweening
+- [ ] More precise hitbox
+- [ ] Tweening / hitstop / juiciness / squash and stretch
+- [ ] Hit animation effects
+- [ ] Weapon / item attachment
+- [ ] Rigging / animation reuse
 - [ ] UI / menu
 - [ ] Sound
 
