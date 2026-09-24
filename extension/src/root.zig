@@ -3,6 +3,7 @@ const godot = @import("godot_zig");
 const JelloVisual = @import("JelloVisual.zig");
 const Cursor = @import("Cursor.zig");
 const Character = @import("Character.zig");
+const SpineYawModifier = @import("SpineYawModifier.zig");
 
 var character_runtime_names: Character.RuntimeNames = undefined;
 var character_runtime_names_initialized = false;
@@ -23,6 +24,16 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
         "on_contact_requested",
         Cursor.ContactSignal,
         &JelloVisual.onContactRequested,
+    );
+
+    godot.class.NativeClass(SpineYawModifier, "SkeletonModifier3D", "SpineYawModifier").register();
+    godot.class.registerProperty(
+        SpineYawModifier,
+        "SpineYawModifier",
+        "yaw",
+        .float,
+        SpineYawModifier.getYaw,
+        SpineYawModifier.setYaw,
     );
 
     godot.class.NativeClass(Character, "CharacterBody3D", "Character").registerWithUserdata(&character_runtime_names);

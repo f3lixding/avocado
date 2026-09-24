@@ -1,6 +1,8 @@
 const std = @import("std");
 const godot = @import("godot_zig");
 
+const SpineYawModifier = @import("SpineYawModifier.zig");
+
 const CharacterBody3D = godot.generated.classes.CharacterBody3D;
 const CollisionObject3D = godot.generated.classes.CollisionObject3D;
 const Engine = godot.generated.classes.Engine;
@@ -36,7 +38,7 @@ pub const RuntimeNames = struct {
     input_event_mouse_motion: godot.StringName,
 
     // Animation tree param names
-    anim_tree_path: godot.NodePath,
+    animation_tree_path: godot.NodePath,
     movement_playback_param: godot.StringName,
     locomotion_param: godot.StringName,
     pistol_aim_param: godot.StringName,
@@ -50,11 +52,18 @@ pub const RuntimeNames = struct {
     state_jump: godot.StringName,
     jump_land_oneshot: godot.StringName,
 
+    // Imported model nodes use the model scene as their unique-name owner.
+    model_path: godot.NodePath,
+    skeleton_path: godot.NodePath,
+    spine_modifier_path: godot.NodePath,
+    spine_yaw_param: godot.StringName,
+
     ready: godot.StringName,
     input: godot.StringName,
     process: godot.StringName,
     physics_process: godot.StringName,
-    camera_pivot_path: godot.NodePath,
+    camera_yaw_path: godot.NodePath,
+    camera_pitch_path: godot.NodePath,
     spring_arm_path: godot.NodePath,
     camera_shake_node_path: godot.NodePath,
     camera_path: godot.NodePath,
@@ -70,7 +79,7 @@ pub const RuntimeNames = struct {
             .aim = godot.api.godot.stringName("aim"),
             .input_event_mouse_motion = godot.api.godot.stringName("InputEventMouseMotion"),
 
-            .anim_tree_path = godot.api.godot.nodePath("UAL1/AnimationTree"),
+            .animation_tree_path = godot.api.godot.nodePath("%AnimationTree"),
             .movement_playback_param = godot.api.godot.stringName("parameters/StateMachine/playback"),
             .locomotion_param = godot.api.godot.stringName("parameters/StateMachine/Locomotion/blend_position"),
             .pistol_aim_param = godot.api.godot.stringName("parameters/PistolAim/blend_position"),
@@ -84,14 +93,20 @@ pub const RuntimeNames = struct {
             .state_jump = godot.api.godot.stringName("Jump"),
             .jump_land_oneshot = godot.api.godot.stringName("parameters/JumpLandOneShot/request"),
 
+            .model_path = godot.api.godot.nodePath("%UAL1"),
+            .skeleton_path = godot.api.godot.nodePath("%Skeleton3D"),
+            .spine_modifier_path = godot.api.godot.nodePath("%SpineYawModifier"),
+            .spine_yaw_param = godot.api.godot.stringName("yaw"),
+
             .ready = godot.api.godot.stringName("_ready"),
             .input = godot.api.godot.stringName("_input"),
             .process = godot.api.godot.stringName("_process"),
             .physics_process = godot.api.godot.stringName("_physics_process"),
-            .camera_pivot_path = godot.api.godot.nodePath("CameraPivot"),
-            .spring_arm_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D"),
-            .camera_shake_node_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/CameraShake"),
-            .camera_path = godot.api.godot.nodePath("CameraPivot/SpringArm3D/CameraShake/Camera3D"),
+            .camera_yaw_path = godot.api.godot.nodePath("%CameraYaw"),
+            .camera_pitch_path = godot.api.godot.nodePath("%CameraPitch"),
+            .spring_arm_path = godot.api.godot.nodePath("%SpringArm3D"),
+            .camera_shake_node_path = godot.api.godot.nodePath("%CameraShake"),
+            .camera_path = godot.api.godot.nodePath("%Camera3D"),
         };
     }
 
@@ -105,7 +120,7 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.aim);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input_event_mouse_motion);
 
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.anim_tree_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.animation_tree_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.movement_playback_param);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.locomotion_param);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.pistol_aim_param);
@@ -119,11 +134,17 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_jump);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump_land_oneshot);
 
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.model_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.skeleton_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.spine_modifier_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.spine_yaw_param);
+
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.ready);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.process);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.physics_process);
-        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_pivot_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_yaw_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_pitch_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.spring_arm_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_shake_node_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.camera_path);
@@ -154,7 +175,8 @@ landing_sequence: i64 = 0,
 sprint_exit_sequence: i64 = 0,
 
 spring_arm: ?SpringArm3D = null,
-camera_pivot: ?Node3D = null,
+camera_yaw: ?Node3D = null,
+camera_pitch: ?Node3D = null,
 camera: ?Camera3D = null,
 camera_attr_practical: ?CameraAttributesPractical = null,
 camera_fov: struct {
@@ -165,6 +187,15 @@ camera_fov: struct {
 camera_shake_node: ?Node3D = null,
 camera_shake_time: f32 = 0.0,
 camera_shake_strength: f32 = 0.0,
+
+// This is so the torso is decoupled from the legs
+// The decoupling happens under the following modes:
+// - When the camera is pivoted with no directional input (i.e. in place)
+// - When there is movement input, there is still to be a "lag" between the torso's orientation from that of the legs
+look_yaw: f64 = 0.0,
+body_yaw: f64 = 0.0,
+aligning: bool = false,
+spine_modifier: ?*SpineYawModifier = null,
 
 local_input_enabled: bool = false,
 
@@ -179,6 +210,9 @@ const MOUSE_SENSITIVITY: f64 = 0.0025;
 const MINIMUM_PITCH: f64 = -60.0;
 const MAXIMUM_PITCH: f64 = 45.0;
 const JUMP_DISTURBANCE_DURATION: f64 = 0.5;
+const FEET_TURN_SPEED: f64 = 10.0;
+// roughtly 75 degree
+const FEET_LOOK_YAW_CAP: f64 = 1.3;
 
 pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*anyopaque) Self {
     const names: *RuntimeNames = @ptrCast(@alignCast(class_userdata.?));
@@ -217,12 +251,14 @@ pub fn ready(self: *Self) callconv(.c) void {
         input.set_mouse_mode(Input.MouseMode.captured);
     }
 
-    const camera_pivot_node = node.get_node(self.names.camera_pivot_path);
+    const camera_yaw_node = node.get_node(self.names.camera_yaw_path);
+    const camera_pitch_node = node.get_node(self.names.camera_pitch_path);
     const spring_arm_node = node.get_node(self.names.spring_arm_path);
     const camera_shake_node = node.get_node(self.names.camera_shake_node_path);
     const camera_node = node.get_node(self.names.camera_path);
-    if (!camera_pivot_node.isNull() and !spring_arm_node.isNull() and !camera_shake_node.isNull() and !camera_node.isNull()) {
-        self.camera_pivot = Node3D.init(camera_pivot_node.object.ptr);
+    if (!camera_yaw_node.isNull() and !camera_pitch_node.isNull() and !spring_arm_node.isNull() and !camera_shake_node.isNull() and !camera_node.isNull()) {
+        self.camera_yaw = Node3D.init(camera_yaw_node.object.ptr);
+        self.camera_pitch = Node3D.init(camera_pitch_node.object.ptr);
         self.spring_arm = SpringArm3D.init(spring_arm_node.object.ptr);
         self.camera_shake_node = Node3D.init(camera_shake_node.object.ptr);
         self.camera = Camera3D.init(camera_node.object.ptr);
@@ -256,7 +292,7 @@ pub fn ready(self: *Self) callconv(.c) void {
         util.log("camera rig node is null");
     }
 
-    const anim_tree_node = node.get_node(self.names.anim_tree_path);
+    const anim_tree_node = node.get_node(self.names.animation_tree_path);
     if (!anim_tree_node.isNull()) {
         const anim_tree = AnimationTree.init(anim_tree_node.asObject().ptr);
 
@@ -290,6 +326,28 @@ pub fn ready(self: *Self) callconv(.c) void {
         util.log(msg);
         @panic(msg);
     }
+
+    const modifier_node = node.get_node(self.names.spine_modifier_path);
+    if (!modifier_node.isNull()) {
+        self.spine_modifier = blk: {
+            const binding = godot.api.godot.object_get_instance_binding.?(
+                modifier_node.asObject().ptr,
+                godot.api.godot.library,
+                &godot.class.BindingCallbacks,
+            );
+            if (binding) |raw| {
+                break :blk @ptrCast(@alignCast(raw));
+            } else {
+                const msg = "Failed to retrieve spine modifier instance";
+                util.log(msg);
+                @panic(msg);
+            }
+        };
+    } else {
+        const msg = "SpineYawModifier node is null";
+        util.log(msg);
+        @panic(msg);
+    }
 }
 
 pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callconv(.c) void {
@@ -300,11 +358,23 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
 
     const motion = InputEventMouseMotion.init(raw_event);
     const relative = motion.get_relative();
-    const self_node = Node3D.init(self.object);
-    self_node.rotate_y(-@as(f64, relative.x) * MOUSE_SENSITIVITY);
 
-    const camera_pivot = self.camera_pivot orelse return;
-    var rotation = camera_pivot.get_rotation();
+    const yaw_delta = -@as(f64, relative.x) * MOUSE_SENSITIVITY;
+    self.look_yaw += yaw_delta;
+    // to wrap
+    self.look_yaw = std.math.atan2(
+        @sin(self.look_yaw),
+        @cos(self.look_yaw),
+    );
+    const camera_yaw = self.camera_yaw orelse return;
+    camera_yaw.rotate_y(yaw_delta);
+
+    if (!self.aligning and @abs(angleDifference(self.body_yaw, self.look_yaw)) > FEET_LOOK_YAW_CAP) {
+        self.aligning = true;
+    }
+
+    const camera_pitch = self.camera_pitch orelse return;
+    var rotation = camera_pitch.get_rotation();
     const min_pitch_rad: f64 = std.math.degreesToRadians(MINIMUM_PITCH);
     const max_pitch_rad: f64 = std.math.degreesToRadians(MAXIMUM_PITCH);
     const x_rotation = std.math.clamp(
@@ -313,7 +383,7 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
         max_pitch_rad,
     );
     rotation.x = @floatCast(x_rotation);
-    camera_pivot.set_rotation(rotation);
+    camera_pitch.set_rotation(rotation);
 
     self.x_view_angle = @floatCast(if (x_rotation < 0.0)
         x_rotation / -min_pitch_rad
@@ -350,8 +420,8 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     const control: f32 = if (is_on_floor) 3.0 else AIR_CONTROL;
     const step = ACCELERATION * control * @as(f32, @floatCast(delta));
     const top_speed = if (should_sprint) TOP_SPRINT_SPEED else SPRINT_SPEED_THRESHOLD;
-    velocity.x = moveToward(velocity.x, direction.x * top_speed, step);
-    velocity.z = moveToward(velocity.z, direction.z * top_speed, step);
+    velocity.x = moveToward(f32, velocity.x, direction.x * top_speed, step);
+    velocity.z = moveToward(f32, velocity.z, direction.z * top_speed, step);
 
     var jumped = false;
     if (is_on_floor) {
@@ -402,11 +472,13 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     const max_blend_delta = step / SPRINT_SPEED_THRESHOLD;
 
     self.locomotion_blend.x = moveToward(
+        f32,
         self.locomotion_blend.x,
         target_blend.x,
         max_blend_delta,
     );
     self.locomotion_blend.y = moveToward(
+        f32,
         self.locomotion_blend.y,
         target_blend.y,
         max_blend_delta,
@@ -433,6 +505,7 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
 
     const input = Input.singleton();
     const is_aiming = input.is_action_pressed(self.names.aim, false);
+    const has_movement_input = input.is_action_pressed(self.names.move_forward, false) or input.is_action_pressed(self.names.move_left, false) or input.is_action_pressed(self.names.move_right, false) or input.is_action_pressed(self.names.move_backward, false);
 
     self.camera_attr_practical.?.set_dof_blur_near_enabled(is_aiming);
 
@@ -442,6 +515,7 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
     else
         40.0 * @as(f32, @floatCast(delta));
     const new_fov = moveToward(
+        f32,
         self.camera_fov.current,
         if (is_aiming) 30.0 else self.camera_fov.target,
         max_delta,
@@ -480,8 +554,37 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
         break :blk 0.0;
     };
 
-    self.aim_weight = moveToward(self.aim_weight, target_aim_weight, 8.0 * @as(f32, @floatCast(delta)));
+    self.aim_weight = moveToward(f32, self.aim_weight, target_aim_weight, 8.0 * @as(f32, @floatCast(delta)));
     self.animation_tree.?.asObject().set(self.names.aim_blend_param, self.aim_weight);
+
+    // we can't quite rotate the lower body independent of the torso. so
+    // rotating the lower body effectively is rotating the entire body node
+    if (self.aligning or has_movement_input) {
+        const yaw_difference = angleDifference(self.body_yaw, self.look_yaw);
+        const max_step = delta * FEET_TURN_SPEED;
+
+        if (@abs(yaw_difference) <= max_step) {
+            self.body_yaw = self.look_yaw;
+            self.aligning = false;
+        } else {
+            self.body_yaw += std.math.sign(yaw_difference) * max_step;
+            self.body_yaw = std.math.atan2(
+                @sin(self.body_yaw),
+                @cos(self.body_yaw),
+            );
+        }
+
+        // rotate the model only
+        const model_node = Node.init(self.object).get_node(self.names.model_path);
+        const model = Node3D.init(model_node.asObject().ptr);
+        var rotation = model.get_rotation();
+        rotation.y = @floatCast(self.body_yaw);
+        model.set_rotation(rotation);
+    }
+
+    const relative_yaw = angleDifference(self.body_yaw, self.look_yaw);
+    if (self.spine_modifier) |modifier|
+        modifier.yaw = relative_yaw;
 }
 
 pub fn setAnimationState(self: *Self, value: i64) callconv(.c) void {
@@ -574,6 +677,7 @@ fn disturbCamera(self: *Self, delta: f32, target_strength: f32) void {
     else
         SHAKE_DECAY;
     self.camera_shake_strength = moveToward(
+        f32,
         self.camera_shake_strength,
         std.math.clamp(target_strength, 0.0, 1.0),
         rate * delta,
@@ -616,7 +720,12 @@ fn basisColumnZ(basis: godot.Basis) Vector3 {
     };
 }
 
-fn moveToward(current: f32, target: f32, max_delta: f32) f32 {
+fn angleDifference(from: f64, to: f64) f64 {
+    const difference = to - from;
+    return std.math.atan2(@sin(difference), @cos(difference));
+}
+
+fn moveToward(comptime T: type, current: T, target: T, max_delta: T) T {
     if (@abs(target - current) <= max_delta) return target;
     return current + std.math.sign(target - current) * max_delta;
 }
@@ -641,6 +750,10 @@ fn cameraRelativeDirection(self: *Self, input: Vector2) Vector3 {
     forward.z = -forward.z;
     forward = forward.normalized();
 
+    // Because I always seem to forget what this is doing:
+    // - the input needs two vectors to describe, x and z (with y set to zero because that is taken care of by vertical component input)
+    // - we are deriving the direction user intends to move to based on current camera basis
+    // - we set y to zero because we don't want this direction to contain y component
     const direction = Vector3{
         .x = right.x * input.x + forward.x * -input.y,
         .y = 0.0,
