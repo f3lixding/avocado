@@ -51,6 +51,8 @@ pub const RuntimeNames = struct {
     state_jump_start: godot.StringName,
     state_jump: godot.StringName,
     jump_land_oneshot: godot.StringName,
+    turn_r_oneshot: godot.StringName,
+    turn_l_oneshot: godot.StringName,
 
     // Imported model nodes use the model scene as their unique-name owner.
     model_path: godot.NodePath,
@@ -92,6 +94,8 @@ pub const RuntimeNames = struct {
             .state_jump_start = godot.api.godot.stringName("Jump_Start"),
             .state_jump = godot.api.godot.stringName("Jump"),
             .jump_land_oneshot = godot.api.godot.stringName("parameters/JumpLandOneShot/request"),
+            .turn_r_oneshot = godot.api.godot.stringName("parameters/TurnRightOneShot/request"),
+            .turn_l_oneshot = godot.api.godot.stringName("parameters/TurnLeftOneShot/request"),
 
             .model_path = godot.api.godot.nodePath("%UAL1"),
             .skeleton_path = godot.api.godot.nodePath("%Skeleton3D"),
@@ -133,6 +137,8 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_jump_start);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.state_jump);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump_land_oneshot);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.turn_r_oneshot);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.turn_l_oneshot);
 
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.model_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.skeleton_path);
@@ -196,6 +202,8 @@ look_yaw: f64 = 0.0,
 body_yaw: f64 = 0.0,
 aligning: bool = false,
 spine_modifier: ?*SpineYawModifier = null,
+turn_l_sequence: i64 = 0,
+turn_r_sequence: i64 = 0,
 
 local_input_enabled: bool = false,
 
@@ -369,8 +377,18 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
     const camera_yaw = self.camera_yaw orelse return;
     camera_yaw.rotate_y(yaw_delta);
 
-    if (!self.aligning and @abs(angleDifference(self.body_yaw, self.look_yaw)) > FEET_LOOK_YAW_CAP) {
+    const angle_diff = angleDifference(self.body_yaw, self.look_yaw);
+    if (!self.aligning and @abs(angle_diff) > FEET_LOOK_YAW_CAP) {
         self.aligning = true;
+
+        self.animation_tree.?.asObject().set(self.names.turn_r_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
+        self.animation_tree.?.asObject().set(self.names.turn_l_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
+
+        if (angle_diff < 0) {
+            self.setRightTurnSequence(self.turn_r_sequence +| 1);
+        } else {
+            self.setLeftTurnSequence(self.turn_l_sequence +| 1);
+        }
     }
 
     const camera_pitch = self.camera_pitch orelse return;
@@ -563,6 +581,11 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
         const yaw_difference = angleDifference(self.body_yaw, self.look_yaw);
         const max_step = delta * FEET_TURN_SPEED;
 
+        if (has_movement_input) {
+            self.animation_tree.?.asObject().set(self.names.turn_r_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
+            self.animation_tree.?.asObject().set(self.names.turn_l_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
+        }
+
         if (@abs(yaw_difference) <= max_step) {
             self.body_yaw = self.look_yaw;
             self.aligning = false;
@@ -647,6 +670,36 @@ pub fn setSprintExitSequence(self: *Self, value: i64) callconv(.c) void {
 
 pub fn getSprintExitSequence(self: *Self) callconv(.c) i64 {
     return self.sprint_exit_sequence;
+}
+
+pub fn setRightTurnSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.turn_r_sequence) return;
+
+    const body = CharacterBody3D.init(self.object);
+    if (!body.is_on_floor()) return;
+
+    self.turn_r_sequence = value;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.turn_r_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
+}
+
+pub fn setLeftTurnSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.turn_l_sequence) return;
+
+    const body = CharacterBody3D.init(self.object);
+    if (!body.is_on_floor()) return;
+
+    self.turn_l_sequence = value;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.turn_l_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
 }
 
 fn updateCameraFov(self: *Self, velocity: Vector3) void {

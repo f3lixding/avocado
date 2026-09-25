@@ -1,9 +1,10 @@
 # TODO
 - [ ] Turn animation
+    - [ ] Add turn animation for feet during turn
 - [ ] Attack animation (or just extra interactivity)
-- [ ] More precise hitbox
 - [ ] Tweening / hitstop / juiciness / squash and stretch
 - [ ] Hit animation effects
+- [ ] More precise hitbox
 - [ ] Weapon / item attachment
 - [ ] Rigging / animation reuse
 - [ ] UI / menu
