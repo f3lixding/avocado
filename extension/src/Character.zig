@@ -35,6 +35,7 @@ pub const RuntimeNames = struct {
     jump: godot.StringName,
     shift: godot.StringName,
     aim: godot.StringName,
+    fire: godot.StringName,
     input_event_mouse_motion: godot.StringName,
 
     // Animation tree param names
@@ -53,6 +54,7 @@ pub const RuntimeNames = struct {
     jump_land_oneshot: godot.StringName,
     turn_r_oneshot: godot.StringName,
     turn_l_oneshot: godot.StringName,
+    sword_attack_standing_oneshot: godot.StringName,
 
     // Imported model nodes use the model scene as their unique-name owner.
     model_path: godot.NodePath,
@@ -79,6 +81,7 @@ pub const RuntimeNames = struct {
             .jump = godot.api.godot.stringName("jump"),
             .shift = godot.api.godot.stringName("shift"),
             .aim = godot.api.godot.stringName("aim"),
+            .fire = godot.api.godot.stringName("fire"),
             .input_event_mouse_motion = godot.api.godot.stringName("InputEventMouseMotion"),
 
             .animation_tree_path = godot.api.godot.nodePath("%AnimationTree"),
@@ -96,6 +99,7 @@ pub const RuntimeNames = struct {
             .jump_land_oneshot = godot.api.godot.stringName("parameters/JumpLandOneShot/request"),
             .turn_r_oneshot = godot.api.godot.stringName("parameters/TurnRightOneShot/request"),
             .turn_l_oneshot = godot.api.godot.stringName("parameters/TurnLeftOneShot/request"),
+            .sword_attack_standing_oneshot = godot.api.godot.stringName("parameters/SwordAttackOneShot/request"),
 
             .model_path = godot.api.godot.nodePath("%UAL1"),
             .skeleton_path = godot.api.godot.nodePath("%Skeleton3D"),
@@ -122,6 +126,7 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.shift);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.aim);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.fire);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.input_event_mouse_motion);
 
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.animation_tree_path);
@@ -139,6 +144,7 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.jump_land_oneshot);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.turn_r_oneshot);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.turn_l_oneshot);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.sword_attack_standing_oneshot);
 
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.model_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.skeleton_path);
@@ -157,12 +163,20 @@ pub const RuntimeNames = struct {
     }
 };
 
-pub const AnimState = enum(i64) {
+pub const LocomotionState = enum(i64) {
     locomotion = 0,
     sprint_enter,
     sprint,
     jump_start,
     jump,
+};
+
+pub const ActionState = union(enum(i64)) {
+    none = 0,
+    attack: struct {
+        elapsed: f64 = 0.0,
+        duration: f64,
+    },
 };
 
 object: godot.c.GDExtensionObjectPtr,
@@ -175,10 +189,16 @@ locomotion_blend: Vector2 = .{},
 aim_weight: f32 = 0.0,
 // updated for process to use for aim
 x_view_angle: f32 = 0.0,
+
 // Replicated animation state and event sequences.
-anim_state: AnimState = .locomotion,
+loco_state: LocomotionState = .locomotion,
+act_state: ActionState = .none,
+
 landing_sequence: i64 = 0,
 sprint_exit_sequence: i64 = 0,
+turn_l_sequence: i64 = 0,
+turn_r_sequence: i64 = 0,
+attack_sequence: i64 = 0,
 
 spring_arm: ?SpringArm3D = null,
 camera_yaw: ?Node3D = null,
@@ -202,8 +222,6 @@ look_yaw: f64 = 0.0,
 body_yaw: f64 = 0.0,
 aligning: bool = false,
 spine_modifier: ?*SpineYawModifier = null,
-turn_l_sequence: i64 = 0,
-turn_r_sequence: i64 = 0,
 
 local_input_enabled: bool = false,
 
@@ -377,6 +395,8 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
     const camera_yaw = self.camera_yaw orelse return;
     camera_yaw.rotate_y(yaw_delta);
 
+    // TODO: maybe refactor this into intent and not act on it here
+    // since this is purely just visual, the action perhaps is more appropriate in process
     const angle_diff = angleDifference(self.body_yaw, self.look_yaw);
     if (!self.aligning and @abs(angle_diff) > FEET_LOOK_YAW_CAP) {
         self.aligning = true;
@@ -414,8 +434,20 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
 
     const input = Input.singleton();
     const body = CharacterBody3D.init(self.object);
+    const attack_attempted = input.is_action_pressed(self.names.fire, false);
     const is_on_floor = body.is_on_floor();
     const is_shift_held = input.is_action_pressed(self.names.shift, false);
+
+    if (attack_attempted and self.act_state == .none) {
+        // For now we will assume the only attack is sword attack
+        self.act_state = .{ .attack = .{
+            .duration = 1.0,
+        } };
+
+        self.setAttackSequence(self.attack_sequence +| 1);
+    } else {
+        self.updateActionState(delta);
+    }
 
     var x: f32 = 0.0;
     var z: f32 = 0.0;
@@ -504,18 +536,31 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     self.animation_tree.?.asObject().set(self.names.locomotion_param, self.locomotion_blend);
 
     if (jumped) {
-        self.setAnimationState(@intFromEnum(AnimState.jump_start));
+        self.setLocoState(@intFromEnum(LocomotionState.jump_start));
     } else if (just_landed) {
-        self.setAnimationState(@intFromEnum(AnimState.locomotion));
+        self.setLocoState(@intFromEnum(LocomotionState.locomotion));
         self.setLandingSequence(self.landing_sequence + 1);
     } else if (should_sprint and !self.was_sprinting) {
-        self.setAnimationState(@intFromEnum(AnimState.sprint_enter));
+        self.setLocoState(@intFromEnum(LocomotionState.sprint_enter));
     } else if (!should_sprint and self.was_sprinting) {
-        self.setAnimationState(@intFromEnum(AnimState.locomotion));
+        self.setLocoState(@intFromEnum(LocomotionState.locomotion));
         self.setSprintExitSequence(self.sprint_exit_sequence + 1);
     }
 
     self.was_sprinting = should_sprint;
+}
+
+fn updateActionState(self: *Self, delta: f64) void {
+    switch (self.act_state) {
+        .attack => |*attack| {
+            attack.elapsed += delta;
+
+            if (attack.elapsed > attack.duration) {
+                self.act_state = .none;
+            }
+        },
+        .none => {},
+    }
 }
 
 pub fn process(self: *Self, delta: f64) callconv(.c) void {
@@ -610,18 +655,23 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
         modifier.yaw = relative_yaw;
 }
 
-pub fn setAnimationState(self: *Self, value: i64) callconv(.c) void {
-    const state: AnimState = switch (value) {
-        0 => .locomotion,
-        1 => .sprint_enter,
-        2 => .sprint,
-        3 => .jump_start,
-        4 => .jump,
-        else => return,
+fn getActionMovementScale(self: Self) f32 {
+    return switch (self.act_state) {
+        .none => 1.0,
+        .attack => |attack| blk: {
+            if (attack.elapsed < 0.10) break :blk 0.25;
+            if (attack.elapsed < 0.18) break :blk 0.0;
+            if (attack.elapsed < 0.40) break :blk 0.4;
+            break :blk 1.0;
+        },
     };
-    if (state == self.anim_state) return;
+}
 
-    self.anim_state = state;
+pub fn setLocoState(self: *Self, value: i64) callconv(.c) void {
+    const state: LocomotionState = @enumFromInt(value);
+    if (state == self.loco_state) return;
+
+    self.loco_state = state;
     const playback = self.animation_playback orelse return;
     const name = switch (state) {
         .locomotion => self.names.state_locomotion,
@@ -639,7 +689,7 @@ pub fn setAnimationState(self: *Self, value: i64) callconv(.c) void {
 }
 
 pub fn getAnimationState(self: *Self) callconv(.c) i64 {
-    return @intFromEnum(self.anim_state);
+    return @intFromEnum(self.loco_state);
 }
 
 pub fn setLandingSequence(self: *Self, value: i64) callconv(.c) void {
@@ -698,6 +748,16 @@ pub fn setLeftTurnSequence(self: *Self, value: i64) callconv(.c) void {
     const tree = self.animation_tree orelse return;
     tree.asObject().set(
         self.names.turn_l_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
+}
+
+pub fn setAttackSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.attack_sequence) return;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.sword_attack_standing_oneshot,
         @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
     );
 }

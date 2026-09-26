@@ -1,16 +1,19 @@
 # TODO
-- [ ] Turn animation
-    - [ ] Add turn animation for feet during turn
 - [ ] Attack animation (or just extra interactivity)
 - [ ] Tweening / hitstop / juiciness / squash and stretch
-- [ ] Hit animation effects
-- [ ] More precise hitbox
+- [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
+- [ ] HP / dmg
 - [ ] Rigging / animation reuse
 - [ ] UI / menu
 - [ ] Sound
 
+- [ ] ECS through single node and rendered through renderserver
+- [ ] Single entity interactions with other Nodes
+
 # DONE
+- [x] Turn animation
+    - [x] Add turn animation for feet during turn
 - [x] Clean up extension leaks
 - [x] Camera placement adjustment
 - [x] Restore easy test setup

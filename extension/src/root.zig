@@ -43,7 +43,7 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
         "animation_state",
         .int,
         Character.getAnimationState,
-        Character.setAnimationState,
+        Character.setLocoState,
     );
     godot.class.registerProperty(
         Character,
