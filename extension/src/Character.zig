@@ -179,6 +179,18 @@ pub const ActionState = union(enum(i64)) {
     },
 };
 
+const MovementInput = struct {
+    x: f32,
+    z: f32,
+    has_input: bool,
+};
+
+const MovementUpdate = struct {
+    velocity: Vector3,
+    jumped: bool,
+    acceleration_step: f32,
+};
+
 object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
@@ -434,12 +446,50 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
 
     const input = Input.singleton();
     const body = CharacterBody3D.init(self.object);
-    const attack_attempted = input.is_action_pressed(self.names.fire, false);
-    const is_on_floor = body.is_on_floor();
+    const was_on_floor = body.is_on_floor();
     const is_shift_held = input.is_action_pressed(self.names.shift, false);
 
+    self.updateActionFromInput(input, delta);
+
+    const movement_input = self.readMovementInput(input);
+    const movement = self.calculateMovement(
+        input,
+        body.get_velocity(),
+        movement_input,
+        was_on_floor,
+        is_shift_held,
+        delta,
+    );
+
+    self.fadeOutInterruptedAnimations(movement_input.has_input, movement.jumped);
+    self.updateCameraFov(movement.velocity);
+
+    body.set_velocity(movement.velocity);
+    _ = body.move_and_slide();
+
+    const is_on_floor = body.is_on_floor();
+    const current_velocity = body.get_velocity();
+    const horizontal_speed = @sqrt(
+        current_velocity.x * current_velocity.x + current_velocity.z * current_velocity.z,
+    );
+    const just_landed = !was_on_floor and is_on_floor;
+    const should_sprint = is_on_floor and movement_input.has_input and is_shift_held;
+
+    if (just_landed)
+        self.pending_landing_shake = JUMP_DISTURBANCE_DURATION;
+
+    self.updateLocomotionBlend(
+        movement_input,
+        horizontal_speed,
+        movement.acceleration_step,
+    );
+    self.updateLocomotionState(movement.jumped, just_landed, should_sprint);
+}
+
+fn updateActionFromInput(self: *Self, input: Input, delta: f64) void {
+    const attack_attempted = input.is_action_pressed(self.names.fire, false);
     if (attack_attempted and self.act_state == .none) {
-        // For now we will assume the only attack is sword attack
+        // For now we will assume the only attack is sword attack.
         self.act_state = .{ .attack = .{
             .duration = 1.0,
         } };
@@ -448,7 +498,9 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     } else {
         self.updateActionState(delta);
     }
+}
 
+fn readMovementInput(self: *const Self, input: Input) MovementInput {
     var x: f32 = 0.0;
     var z: f32 = 0.0;
     if (input.is_action_pressed(self.names.move_left, false)) x -= 1.0;
@@ -457,21 +509,40 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
     if (input.is_action_pressed(self.names.move_backward, false)) z += 1.0;
 
     const input_length = @sqrt(x * x + z * z);
-    const has_movement_input = input_length > 0.0;
-    if (has_movement_input) {
+    const has_input = input_length > 0.0;
+    if (has_input) {
         x /= input_length;
         z /= input_length;
     }
 
-    const direction = self.cameraRelativeDirection(.{ .x = x, .y = z });
-    var velocity = body.get_velocity();
-    var should_sprint = is_on_floor and has_movement_input and is_shift_held;
+    return .{
+        .x = x,
+        .z = z,
+        .has_input = has_input,
+    };
+}
 
+fn calculateMovement(
+    self: *Self,
+    input: Input,
+    current_velocity: Vector3,
+    movement_input: MovementInput,
+    is_on_floor: bool,
+    is_shift_held: bool,
+    delta: f64,
+) MovementUpdate {
+    const direction = self.cameraRelativeDirection(.{
+        .x = movement_input.x,
+        .y = movement_input.z,
+    });
+    var velocity = current_velocity;
+    const should_sprint = is_on_floor and movement_input.has_input and is_shift_held;
     const control: f32 = if (is_on_floor) 3.0 else AIR_CONTROL;
-    const step = ACCELERATION * control * @as(f32, @floatCast(delta));
+    const acceleration_step = ACCELERATION * control * @as(f32, @floatCast(delta));
     const top_speed = if (should_sprint) TOP_SPRINT_SPEED else SPRINT_SPEED_THRESHOLD;
-    velocity.x = moveToward(f32, velocity.x, direction.x * top_speed, step);
-    velocity.z = moveToward(f32, velocity.z, direction.z * top_speed, step);
+
+    velocity.x = moveToward(f32, velocity.x, direction.x * top_speed, acceleration_step);
+    velocity.z = moveToward(f32, velocity.z, direction.z * top_speed, acceleration_step);
 
     var jumped = false;
     if (is_on_floor) {
@@ -488,38 +559,42 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
         );
     }
 
-    if (has_movement_input or jumped) {
-        self.animation_tree.?.asObject().set(self.names.sprint_exit_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
-        self.animation_tree.?.asObject().set(self.names.jump_land_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
-    }
+    return .{
+        .velocity = velocity,
+        .jumped = jumped,
+        .acceleration_step = acceleration_step,
+    };
+}
 
-    self.updateCameraFov(velocity);
+fn fadeOutInterruptedAnimations(self: *Self, has_movement_input: bool, jumped: bool) void {
+    if (!has_movement_input and !jumped) return;
 
-    body.set_velocity(velocity);
-    _ = body.move_and_slide();
+    self.animation_tree.?.asObject().set(
+        self.names.sprint_exit_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out),
+    );
+    self.animation_tree.?.asObject().set(
+        self.names.jump_land_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out),
+    );
+}
 
-    const now_on_floor = body.is_on_floor();
-    const now_velocity = body.get_velocity();
-    const horizontal_speed = @sqrt(now_velocity.x * now_velocity.x + now_velocity.z * now_velocity.z);
-
-    const just_landed = !is_on_floor and now_on_floor;
-
-    if (just_landed)
-        self.pending_landing_shake = JUMP_DISTURBANCE_DURATION;
-
-    should_sprint = now_on_floor and has_movement_input and is_shift_held;
-
+fn updateLocomotionBlend(
+    self: *Self,
+    movement_input: MovementInput,
+    horizontal_speed: f32,
+    acceleration_step: f32,
+) void {
     const jog_weight = std.math.clamp(
         horizontal_speed / SPRINT_SPEED_THRESHOLD,
         0.0,
         1.0,
     );
-
     const target_blend = Vector2{
-        .x = x * jog_weight,
-        .y = -z * jog_weight,
+        .x = movement_input.x * jog_weight,
+        .y = -movement_input.z * jog_weight,
     };
-    const max_blend_delta = step / SPRINT_SPEED_THRESHOLD;
+    const max_blend_delta = acceleration_step / SPRINT_SPEED_THRESHOLD;
 
     self.locomotion_blend.x = moveToward(
         f32,
@@ -533,8 +608,18 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
         target_blend.y,
         max_blend_delta,
     );
-    self.animation_tree.?.asObject().set(self.names.locomotion_param, self.locomotion_blend);
+    self.animation_tree.?.asObject().set(
+        self.names.locomotion_param,
+        self.locomotion_blend,
+    );
+}
 
+fn updateLocomotionState(
+    self: *Self,
+    jumped: bool,
+    just_landed: bool,
+    should_sprint: bool,
+) void {
     if (jumped) {
         self.setLocoState(@intFromEnum(LocomotionState.jump_start));
     } else if (just_landed) {
