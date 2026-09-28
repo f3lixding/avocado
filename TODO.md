@@ -1,5 +1,5 @@
 # TODO
-- [ ] Attack animation (or just extra interactivity)
+- [ ] Weapon attachment
 - [ ] Tweening / hitstop / juiciness / squash and stretch
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
@@ -12,6 +12,7 @@
 - [ ] Single entity interactions with other Nodes
 
 # DONE
+- [x] Attack animation (or just extra interactivity)
 - [x] Turn animation
     - [x] Add turn animation for feet during turn
 - [x] Clean up extension leaks
