@@ -1,5 +1,10 @@
 # TODO
+## Features
 - [ ] Weapon attachment
+    - [x] Unsheathed position
+    - [x] Sheathed position
+    - [ ] Add weapon sheathing / unsheathing animation in tree
+    - [ ] Equip transition
 - [ ] Tweening / hitstop / juiciness / squash and stretch
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
@@ -10,6 +15,10 @@
 
 - [ ] ECS through single node and rendered through renderserver
 - [ ] Single entity interactions with other Nodes
+
+## Bugs
+- [ ] Swing animation needs to decouple from legs when there is movement input
+- [ ] Swing should modify movement speed when on ground
 
 # DONE
 - [x] Attack animation (or just extra interactivity)

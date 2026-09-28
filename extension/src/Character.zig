@@ -55,6 +55,12 @@ pub const RuntimeNames = struct {
     turn_r_oneshot: godot.StringName,
     turn_l_oneshot: godot.StringName,
     sword_attack_standing_oneshot: godot.StringName,
+    sword_enter_oneshot: godot.StringName,
+    sword_exit_oneshot: godot.StringName,
+
+    sword_path: godot.NodePath,
+    sword_equipped_position_path: godot.NodePath,
+    sword_sheathed_position_path: godot.NodePath,
 
     // Imported model nodes use the model scene as their unique-name owner.
     model_path: godot.NodePath,
@@ -100,6 +106,12 @@ pub const RuntimeNames = struct {
             .turn_r_oneshot = godot.api.godot.stringName("parameters/TurnRightOneShot/request"),
             .turn_l_oneshot = godot.api.godot.stringName("parameters/TurnLeftOneShot/request"),
             .sword_attack_standing_oneshot = godot.api.godot.stringName("parameters/SwordAttackOneShot/request"),
+            .sword_enter_oneshot = godot.api.godot.stringName("parameters/SwordEnterOneShot/request"),
+            .sword_exit_oneshot = godot.api.godot.stringName("parameters/SwordExitOneShot/request"),
+
+            .sword_path = godot.api.godot.nodePath("UAL1/Armature/Skeleton3D/SwordSheathed/SwordSheathedPosition/Sword"),
+            .sword_equipped_position_path = godot.api.godot.nodePath("UAL1/Armature/Skeleton3D/SwordEquipped/SwordEquippedPosition"),
+            .sword_sheathed_position_path = godot.api.godot.nodePath("UAL1/Armature/Skeleton3D/SwordSheathed/SwordSheathedPosition"),
 
             .model_path = godot.api.godot.nodePath("%UAL1"),
             .skeleton_path = godot.api.godot.nodePath("%Skeleton3D"),
@@ -145,6 +157,12 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.turn_r_oneshot);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.turn_l_oneshot);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.sword_attack_standing_oneshot);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.sword_enter_oneshot);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.sword_exit_oneshot);
+
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.sword_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.sword_equipped_position_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.sword_sheathed_position_path);
 
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.model_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.skeleton_path);
@@ -171,11 +189,33 @@ pub const LocomotionState = enum(i64) {
     jump,
 };
 
-pub const ActionState = union(enum(i64)) {
+pub const ActionStateEnum = enum(i64) {
     none = 0,
+    unsheathing,
+    armed,
+    attack,
+    sheathing,
+};
+
+pub const ActionState = union(ActionStateEnum) {
+    none,
+    unsheathing: struct {
+        elapsed: f64 = 0.0,
+        duration: f64 = 0.75,
+        weapon_attached: bool = false,
+    },
+    armed: struct {
+        elapsed: f64 = 0.0,
+        duration: f64 = 5.0,
+    },
     attack: struct {
+        prev_state: ActionStateEnum = .none,
         elapsed: f64 = 0.0,
         duration: f64,
+    },
+    sheathing: struct {
+        elapsed: f64 = 0.0,
+        duration: f64 = 0.75,
     },
 };
 
@@ -195,6 +235,9 @@ object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
 animation_playback: ?AnimationNodeStateMachinePlayback = null,
+sword: ?Node3D = null,
+sword_equipped_position: ?Node3D = null,
+sword_sheathed_position: ?Node3D = null,
 was_sprinting: bool = false,
 pending_landing_shake: f64 = 0.0,
 locomotion_blend: Vector2 = .{},
@@ -211,6 +254,8 @@ sprint_exit_sequence: i64 = 0,
 turn_l_sequence: i64 = 0,
 turn_r_sequence: i64 = 0,
 attack_sequence: i64 = 0,
+unsheath_sequence: i64 = 0,
+sheath_sequence: i64 = 0,
 
 spring_arm: ?SpringArm3D = null,
 camera_yaw: ?Node3D = null,
@@ -249,6 +294,7 @@ const MINIMUM_PITCH: f64 = -60.0;
 const MAXIMUM_PITCH: f64 = 45.0;
 const JUMP_DISTURBANCE_DURATION: f64 = 0.5;
 const FEET_TURN_SPEED: f64 = 10.0;
+const UNSHEATHE_HANDOFF_TIME: f64 = 0.35;
 // roughtly 75 degree
 const FEET_LOOK_YAW_CAP: f64 = 1.3;
 
@@ -361,6 +407,19 @@ pub fn ready(self: *Self) callconv(.c) void {
         }
     } else {
         const msg = "AnimationTree node is null";
+        util.log(msg);
+        @panic(msg);
+    }
+
+    const sword_node = node.get_node(self.names.sword_path);
+    const sword_equipped_position_node = node.get_node(self.names.sword_equipped_position_path);
+    const sword_sheathed_position_node = node.get_node(self.names.sword_sheathed_position_path);
+    if (!sword_node.isNull() and !sword_equipped_position_node.isNull() and !sword_sheathed_position_node.isNull()) {
+        self.sword = Node3D.init(sword_node.asObject().ptr);
+        self.sword_equipped_position = Node3D.init(sword_equipped_position_node.asObject().ptr);
+        self.sword_sheathed_position = Node3D.init(sword_sheathed_position_node.asObject().ptr);
+    } else {
+        const msg = "Sword or sword position node is null";
         util.log(msg);
         @panic(msg);
     }
@@ -488,15 +547,32 @@ pub fn physicsProcess(self: *Self, delta: f64) callconv(.c) void {
 
 fn updateActionFromInput(self: *Self, input: Input, delta: f64) void {
     const attack_attempted = input.is_action_pressed(self.names.fire, false);
-    if (attack_attempted and self.act_state == .none) {
-        // For now we will assume the only attack is sword attack.
-        self.act_state = .{ .attack = .{
-            .duration = 1.0,
-        } };
 
-        self.setAttackSequence(self.attack_sequence +| 1);
-    } else {
-        self.updateActionState(delta);
+    switch (self.act_state) {
+        .none => {
+            if (attack_attempted) {
+                self.setUnsheathSequence(self.unsheath_sequence +| 1);
+                self.act_state = .{ .unsheathing = .{} };
+            }
+        },
+        .unsheathing => {
+            self.updateActionState(delta);
+        },
+        .armed => {
+            if (attack_attempted) {
+                // For now we will assume the only attack is sword attack.
+                self.act_state = .{ .attack = .{
+                    .duration = 1.0,
+                } };
+
+                self.setAttackSequence(self.attack_sequence +| 1);
+            } else {
+                self.updateActionState(delta);
+            }
+        },
+        .attack, .sheathing => {
+            self.updateActionState(delta);
+        },
     }
 }
 
@@ -637,10 +713,45 @@ fn updateLocomotionState(
 
 fn updateActionState(self: *Self, delta: f64) void {
     switch (self.act_state) {
+        .unsheathing => |*unsheathing| {
+            unsheathing.elapsed += delta;
+
+            if (!unsheathing.weapon_attached and unsheathing.elapsed >= UNSHEATHE_HANDOFF_TIME) {
+                if (self.sword) |sword| {
+                    if (self.sword_equipped_position) |position| {
+                        attachWeapon(sword, position);
+                        unsheathing.weapon_attached = true;
+                    }
+                }
+            }
+
+            if (unsheathing.elapsed >= unsheathing.duration) {
+                self.act_state = .{ .armed = .{} };
+            }
+        },
         .attack => |*attack| {
             attack.elapsed += delta;
 
             if (attack.elapsed > attack.duration) {
+                self.act_state = .{ .armed = .{} };
+            }
+        },
+        .armed => |*armed| {
+            armed.elapsed += delta;
+
+            if (armed.elapsed >= armed.duration) {
+                self.setSheathSequence(self.sheath_sequence +| 1);
+                self.act_state = .{ .sheathing = .{} };
+            }
+        },
+        .sheathing => |*sheathing| {
+            sheathing.elapsed += delta;
+
+            if (sheathing.elapsed >= sheathing.duration) {
+                if (self.sword) |sword| {
+                    if (self.sword_sheathed_position) |position|
+                        attachWeapon(sword, position);
+                }
                 self.act_state = .none;
             }
         },
@@ -742,7 +853,8 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
 
 fn getActionMovementScale(self: Self) f32 {
     return switch (self.act_state) {
-        .none => 1.0,
+        .none, .armed => 1.0,
+        .unsheathing, .sheathing => 0.4,
         .attack => |attack| blk: {
             if (attack.elapsed < 0.10) break :blk 0.25;
             if (attack.elapsed < 0.18) break :blk 0.0;
@@ -847,6 +959,28 @@ pub fn setAttackSequence(self: *Self, value: i64) callconv(.c) void {
     );
 }
 
+pub fn setUnsheathSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.unsheath_sequence) return;
+    self.unsheath_sequence = value;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.sword_enter_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
+}
+
+pub fn setSheathSequence(self: *Self, value: i64) callconv(.c) void {
+    if (value == self.sheath_sequence) return;
+    self.sheath_sequence = value;
+
+    const tree = self.animation_tree orelse return;
+    tree.asObject().set(
+        self.names.sword_exit_oneshot,
+        @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
+    );
+}
+
 fn updateCameraFov(self: *Self, velocity: Vector3) void {
     // Ignore vertical velocity so jumping and falling do not alter the FOV.
     const horizontal_speed = @sqrt(
@@ -855,6 +989,16 @@ fn updateCameraFov(self: *Self, velocity: Vector3) void {
 
     const speed_ratio = std.math.clamp(horizontal_speed / TOP_SPRINT_SPEED, 0.0, 1.0);
     self.camera_fov.target = self.camera_fov.setting + 20.0 * speed_ratio;
+}
+
+fn attachWeapon(sword: Node3D, socket: Node3D) void {
+    const sword_node = Node.init(sword.asObject().ptr);
+    const socket_node = Node.init(socket.asObject().ptr);
+
+    sword_node.reparent(socket_node, false);
+    sword.set_position(.{});
+    sword.set_rotation(.{});
+    sword.set_scale(.{ .x = 1.0, .y = 1.0, .z = 1.0 });
 }
 
 fn disturbCamera(self: *Self, delta: f32, target_strength: f32) void {
