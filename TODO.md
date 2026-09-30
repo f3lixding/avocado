@@ -1,10 +1,5 @@
 # TODO
 ## Features
-- [ ] Weapon attachment
-    - [x] Unsheathed position
-    - [x] Sheathed position
-    - [ ] Add weapon sheathing / unsheathing animation in tree
-    - [ ] Equip transition
 - [ ] Tweening / hitstop / juiciness / squash and stretch
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
@@ -19,8 +14,15 @@
 ## Bugs
 - [ ] Swing animation needs to decouple from legs when there is movement input
 - [ ] Swing should modify movement speed when on ground
+- [ ] Sheathing / unsheathing should be filtered
+- [ ] Sheathing / unsheathing should be interruptable
 
 # DONE
+- [x] Weapon attachment
+    - [x] Unsheathed position
+    - [x] Sheathed position
+    - [x] Add weapon sheathing / unsheathing animation in tree
+    - [x] Equip transition
 - [x] Attack animation (or just extra interactivity)
 - [x] Turn animation
     - [x] Add turn animation for feet during turn
