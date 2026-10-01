@@ -615,7 +615,9 @@ fn calculateMovement(
     const should_sprint = is_on_floor and movement_input.has_input and is_shift_held;
     const control: f32 = if (is_on_floor) 3.0 else AIR_CONTROL;
     const acceleration_step = ACCELERATION * control * @as(f32, @floatCast(delta));
-    const top_speed = if (should_sprint) TOP_SPRINT_SPEED else SPRINT_SPEED_THRESHOLD;
+
+    const movement_scale = self.getActionMovementScale();
+    const top_speed = (if (should_sprint) TOP_SPRINT_SPEED else SPRINT_SPEED_THRESHOLD) * movement_scale;
 
     velocity.x = moveToward(f32, velocity.x, direction.x * top_speed, acceleration_step);
     velocity.z = moveToward(f32, velocity.z, direction.z * top_speed, acceleration_step);
@@ -853,14 +855,13 @@ pub fn process(self: *Self, delta: f64) callconv(.c) void {
 
 fn getActionMovementScale(self: Self) f32 {
     return switch (self.act_state) {
-        .none, .armed => 1.0,
-        .unsheathing, .sheathing => 0.4,
         .attack => |attack| blk: {
             if (attack.elapsed < 0.10) break :blk 0.25;
             if (attack.elapsed < 0.18) break :blk 0.0;
             if (attack.elapsed < 0.40) break :blk 0.4;
             break :blk 1.0;
         },
+        else => 1.0,
     };
 }
 

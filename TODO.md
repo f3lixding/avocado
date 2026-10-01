@@ -12,12 +12,13 @@
 - [ ] Single entity interactions with other Nodes
 
 ## Bugs
-- [ ] Swing animation needs to decouple from legs when there is movement input
-- [ ] Swing should modify movement speed when on ground
-- [ ] Sheathing / unsheathing should be filtered
-- [ ] Sheathing / unsheathing should be interruptable
 
 # DONE
+- [x] Add another oneshot with a different filter for when character is moving
+- [x] Swing animation needs to decouple from legs when there is movement input
+- [x] Swing should modify movement speed when on ground
+- [x] Sheathing / unsheathing should be filtered
+- [x] Sheathing / unsheathing should be interruptable
 - [x] Weapon attachment
     - [x] Unsheathed position
     - [x] Sheathed position
