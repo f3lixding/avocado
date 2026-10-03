@@ -5,7 +5,17 @@
 [sub_resource type="BoxShape3D" id="BoxShape3D_hvteh"]
 size = Vector3(1, 4.375, 0.22363281)
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_trail"]
+transparency = 1
+shading_mode = 0
+cull_mode = 2
+albedo_color = Color(0.3, 0.8, 1, 0.55)
+
 [node name="Sword" type="Sword" unique_id=1272582638]
+
+[node name="SwingTrail" type="MeshInstance3D" parent="." unique_id=109830068]
+material_override = SubResource("StandardMaterial3D_trail")
+cast_shadow = 0
 
 [node name="Model" type="Node3D" parent="." unique_id=1975655602]
 transform = Transform3D(-1.0927847e-08, 0, 0.25, 0, 0.25, 0, -0.25, 0, -1.0927847e-08, 0, -0.25965682, 0)
@@ -13,12 +23,14 @@ transform = Transform3D(-1.0927847e-08, 0, 0.25, 0, 0.25, 0, -0.25, 0, -1.092784
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Model" unique_id=1723001926]
 mesh = ExtResource("1_74bdg")
 
-[node name="GripPoint" type="Marker3D" parent="Model" unique_id=1580088331]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 1.0479636, 0)
-gizmo_extents = 0.8
-
 [node name="HitBox" type="Area3D" parent="Model" unique_id=1432927623]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Model/HitBox" unique_id=284346200]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.172471, 0)
 shape = SubResource("BoxShape3D_hvteh")
+
+[node name="BladeBase" type="Marker3D" parent="Model" unique_id=280016895]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9023438, 0)
+
+[node name="BladeTip" type="Marker3D" parent="Model" unique_id=1861116923]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.264853, 0)

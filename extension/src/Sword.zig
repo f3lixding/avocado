@@ -1,12 +1,11 @@
 const std = @import("std");
 const godot = @import("godot_zig");
-const classes = godot.generated.classes;
 
-const Node = classes.Node;
-const Node3D = classes.Node3D;
-const MeshInstance3D = classes.MeshInstance3D;
-const ArrayMesh = classes.ArrayMesh;
-const Mesh = classes.Mesh;
+const Node = godot.generated.classes.Node;
+const Node3D = godot.generated.classes.Node3D;
+const Mesh = godot.generated.classes.Mesh;
+const MeshInstance3D = godot.generated.classes.MeshInstance3D;
+const ArrayMesh = godot.generated.classes.ArrayMesh;
 const Vector3 = godot.Vector3;
 
 const util = @import("util/root.zig");
@@ -14,34 +13,52 @@ const stringNameEqual = util.stringNameEqual;
 
 const Self = @This();
 
+const MAX_SAMPLES: usize = 12;
+const MAX_VERTICES: usize = (MAX_SAMPLES - 1) * 6;
+
+const Sample = struct {
+    base: Vector3,
+    tip: Vector3,
+};
+
 pub const RuntimeNames = struct {
-    // function names
     ready: godot.StringName,
     process: godot.StringName,
+    blade_base_path: godot.NodePath,
+    blade_tip_path: godot.NodePath,
+    trail_path: godot.NodePath,
 
     pub fn init() RuntimeNames {
         return .{
             .ready = godot.api.godot.stringName("_ready"),
             .process = godot.api.godot.stringName("_process"),
+            .blade_base_path = godot.api.godot.nodePath("Model/BladeBase"),
+            .blade_tip_path = godot.api.godot.nodePath("Model/BladeTip"),
+            .trail_path = godot.api.godot.nodePath("SwingTrail"),
         };
     }
 
     pub fn deinit(self: *RuntimeNames) void {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.ready);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME, &self.process);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.blade_base_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.blade_tip_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.trail_path);
     }
 };
 
 object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
-
 blade_base: ?Node3D = null,
 blade_tip: ?Node3D = null,
-trail_visual: ?MeshInstance3D = null,
 trail_mesh: ?ArrayMesh = null,
+samples: [MAX_SAMPLES]Sample = undefined,
+sample_count: usize = 0,
+vertices: [MAX_VERTICES]Vector3 = [_]Vector3{.{}} ** MAX_VERTICES,
+vertex_upload: ?godot.PackedByteArray = null,
 
 pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*anyopaque) Self {
-    const names: *RuntimeNames = @ptrCast(@alignCast(class_userdata));
+    const names: *RuntimeNames = @ptrCast(@alignCast(class_userdata.?));
     return .{
         .object = object,
         .names = names,
@@ -49,16 +66,177 @@ pub fn initWithUserdata(object: godot.c.GDExtensionObjectPtr, class_userdata: ?*
 }
 
 pub fn deinit(self: *Self) void {
-    _ = self;
+    if (self.vertex_upload) |*upload| {
+        upload.destroy();
+    }
+    self.vertex_upload = null;
 }
 
 pub fn ready(self: *Self) callconv(.c) void {
-    _ = self;
+    const node = Node.init(self.object);
+    node.set_process(true);
+
+    const base_node = node.get_node(self.names.blade_base_path);
+    const tip_node = node.get_node(self.names.blade_tip_path);
+    const trail_node = node.get_node(self.names.trail_path);
+
+    if (base_node.isNull() or tip_node.isNull() or trail_node.isNull()) {
+        const message = "Sword trail nodes are missing";
+        util.log(message);
+        @panic(message);
+    }
+
+    self.blade_base = Node3D.init(base_node.asObject().ptr);
+    self.blade_tip = Node3D.init(tip_node.asObject().ptr);
+
+    const trail_visual = MeshInstance3D.init(trail_node.asObject().ptr);
+    const trail_transform = Node3D.init(trail_node.asObject().ptr);
+    const mesh = util.createArrayMesh();
+
+    trail_visual.set_mesh(Mesh.init(mesh.asObject().ptr));
+
+    // Samples and vertices are in world space, so the visual must not inherit
+    // the sword transform and apply it a second time.
+    trail_transform.set_as_top_level(true);
+    trail_transform.set_identity();
+
+    self.trail_mesh = mesh;
+    self.createTrailSurface();
 }
 
-pub fn process(self: *Self, delta: f64) callconv(.c) void {
-    _ = self;
-    _ = delta;
+fn createTrailSurface(self: *Self) void {
+    const mesh = self.trail_mesh orelse return;
+
+    var packed_vertices = godot.PackedVector3Array.fromSlice(self.vertices[0..]);
+    defer packed_vertices.destroy();
+
+    var arrays = util.createMeshArray();
+    defer arrays.destroy();
+    arrays.setPackedVector3Array(.vertex, &packed_vertices);
+
+    var blend_shapes = util.createEmptyArray();
+    defer blend_shapes.destroy();
+
+    var lods = util.createEmptyDictionary();
+    defer godot.api.godot.destroy(
+        godot.c.GDEXTENSION_VARIANT_TYPE_DICTIONARY,
+        &lods,
+    );
+
+    mesh.add_surface_from_arrays(
+        Mesh.PrimitiveType.triangles,
+        arrays,
+        blend_shapes,
+        lods,
+        Mesh.ArrayFormat.flag_use_dynamic_update,
+    );
+
+    self.vertex_upload = godot.PackedByteArray.fromSlice(
+        std.mem.sliceAsBytes(self.vertices[0..]),
+    );
+}
+
+pub fn process(self: *Self, _: f64) callconv(.c) void {
+    const blade_base = self.blade_base orelse return;
+    const blade_tip = self.blade_tip orelse return;
+
+    self.pushSample(.{
+        .base = blade_base.get_global_position(),
+        .tip = blade_tip.get_global_position(),
+    });
+    self.updateTrail();
+}
+
+fn pushSample(self: *Self, sample: Sample) void {
+    if (self.sample_count < MAX_SAMPLES) {
+        self.samples[self.sample_count] = sample;
+        self.sample_count += 1;
+        return;
+    }
+
+    std.mem.copyForwards(
+        Sample,
+        self.samples[0 .. MAX_SAMPLES - 1],
+        self.samples[1..MAX_SAMPLES],
+    );
+    self.samples[MAX_SAMPLES - 1] = sample;
+}
+
+fn updateTrail(self: *Self) void {
+    if (self.sample_count == 0) return;
+
+    var vertex_count: usize = 0;
+    if (self.sample_count >= 2) {
+        for (0..self.sample_count - 1) |i| {
+            const old = self.samples[i];
+            const new = self.samples[i + 1];
+
+            self.vertices[vertex_count + 0] = old.base;
+            self.vertices[vertex_count + 1] = old.tip;
+            self.vertices[vertex_count + 2] = new.base;
+
+            self.vertices[vertex_count + 3] = new.base;
+            self.vertices[vertex_count + 4] = old.tip;
+            self.vertices[vertex_count + 5] = new.tip;
+
+            vertex_count += 6;
+        }
+    }
+
+    // The GPU surface has a fixed size. Degenerate all unused triangles so
+    // they do not render while the sample history is filling.
+    const collapse_point = self.samples[self.sample_count - 1].tip;
+    for (self.vertices[vertex_count..]) |*vertex| {
+        vertex.* = collapse_point;
+    }
+
+    self.uploadVertices();
+}
+
+fn uploadVertices(self: *Self) void {
+    const mesh = self.trail_mesh orelse return;
+    const upload = if (self.vertex_upload) |*value| value else return;
+    const bytes = std.mem.sliceAsBytes(self.vertices[0..]);
+
+    for (bytes, 0..) |byte, i| {
+        upload.set(@intCast(i), byte);
+    }
+
+    // Positions occupy the first bytes of this vertex-only surface.
+    mesh.surface_update_vertex_region(0, 0, upload.*);
+    self.updateBounds(mesh);
+}
+
+fn updateBounds(self: *Self, mesh: ArrayMesh) void {
+    if (self.sample_count == 0) return;
+
+    var min = self.samples[0].base;
+    var max = min;
+
+    for (self.samples[0..self.sample_count]) |sample| {
+        for ([_]Vector3{ sample.base, sample.tip }) |point| {
+            min.x = @min(min.x, point.x);
+            min.y = @min(min.y, point.y);
+            min.z = @min(min.z, point.z);
+            max.x = @max(max.x, point.x);
+            max.y = @max(max.y, point.y);
+            max.z = @max(max.z, point.z);
+        }
+    }
+
+    const padding: f32 = 0.1;
+    mesh.set_custom_aabb(.{
+        .position = .{
+            .x = min.x - padding,
+            .y = min.y - padding,
+            .z = min.z - padding,
+        },
+        .size = .{
+            .x = max.x - min.x + padding * 2.0,
+            .y = max.y - min.y + padding * 2.0,
+            .z = max.z - min.z + padding * 2.0,
+        },
+    });
 }
 
 pub fn getVirtualCallData(
@@ -84,7 +262,10 @@ pub fn callVirtualWithData(
 
     if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&ready)))) {
         ready(self);
-    } else if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&process)))) {
+        return;
+    }
+
+    if (userdata == @as(?*anyopaque, @ptrCast(@constCast(&process)))) {
         const delta: *const f64 = @ptrCast(@alignCast(args[0].?));
         process(self, delta.*);
     }

@@ -120,7 +120,32 @@ pub fn createEmptyArray() godot.Array {
     return .{ .value = value };
 }
 
-pub fn createEmtpyDictionary() godot.types.Dictionary {
+/// Creates the fixed-size Array expected by ArrayMesh.add_surface_from_arrays.
+/// Each index corresponds to one of Godot's Mesh.ARRAY_* channels.
+pub fn createMeshArray() godot.Array {
+    var array = createEmptyArray();
+
+    var method_name = godot.api.godot.stringName("resize");
+    defer godot.api.godot.destroy(
+        godot.c.GDEXTENSION_VARIANT_TYPE_STRING_NAME,
+        &method_name,
+    );
+
+    const resize = godot.api.godot.variant_get_ptr_builtin_method.?(
+        godot.c.GDEXTENSION_VARIANT_TYPE_ARRAY,
+        &method_name,
+        848867239,
+    ).?;
+
+    var size: i64 = @intFromEnum(godot.Array.MeshArrayType.max);
+    const args = [_]godot.c.GDExtensionConstTypePtr{&size};
+    var result: i64 = 0;
+    resize(&array.value, &args, &result, 1);
+
+    return array;
+}
+
+pub fn createEmptyDictionary() godot.types.Dictionary {
     var value: godot.types.Dictionary = std.mem.zeroes(godot.types.Dictionary);
 
     const constructor = godot.api.godot.variant_get_ptr_constructor.?(

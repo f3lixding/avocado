@@ -11,13 +11,12 @@ const MeshInstance3D = godot.MeshInstance3D;
 
 const createArrayMesh = root.createArrayMesh;
 const createEmptyArray = root.createEmptyArray;
-const createEmptyDictionary = root.createEmtpyDictionary;
+const createEmptyDictionary = root.createEmptyDictionary;
 const v3subtract = root.v3subtract;
 const v3cross = root.v3cross;
 const v3addTo = root.v3addTo;
 const writeEncodedNormal = root.writeEncodedNormal;
 
-const MESH_ARRAY_FLAG_USE_DYNAMIC_UPDATE: i64 = 67_108_864;
 const MIN_SQUASH: f32 = -0.35;
 const MAX_SQUASH: f32 = 0.65;
 const MAX_DEFORMATIONS: usize = 4;
@@ -311,7 +310,7 @@ fn createDynamicMesh(self: *Self) !void {
             surface.arrays,
             blend_shapes,
             lods,
-            MESH_ARRAY_FLAG_USE_DYNAMIC_UPDATE,
+            Mesh.ArrayFormat.flag_use_dynamic_update,
         );
 
         const format = dynamic_mesh.surface_get_format(@intCast(surface_i));

@@ -70,6 +70,7 @@ fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
 
     character_runtime_names.deinit();
+    sword_runtime_names.deinit();
 }
 
 pub export fn avocado_extension_init(
