@@ -4,15 +4,16 @@ const JelloVisual = @import("JelloVisual.zig");
 const Cursor = @import("Cursor.zig");
 const Character = @import("Character.zig");
 const SpineYawModifier = @import("SpineYawModifier.zig");
+const Sword = @import("Sword.zig");
 
 var character_runtime_names: Character.RuntimeNames = undefined;
-var character_runtime_names_initialized = false;
+var sword_runtime_names: Sword.RuntimeNames = undefined;
 
 fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
 
     character_runtime_names = Character.RuntimeNames.init();
-    character_runtime_names_initialized = true;
+    sword_runtime_names = Sword.RuntimeNames.init();
 
     godot.class.NativeClass(JelloVisual, "MeshInstance3D", "JelloVisual").register();
 
@@ -61,15 +62,14 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
         Character.getSprintExitSequence,
         Character.setSprintExitSequence,
     );
+
+    godot.class.NativeClass(Sword, "Node3D", "Sword").registerWithUserdata(&sword_runtime_names);
 }
 
 fn deinitialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
     if (level != godot.c.GDEXTENSION_INITIALIZATION_SCENE) return;
 
-    if (character_runtime_names_initialized) {
-        character_runtime_names.deinit();
-        character_runtime_names_initialized = false;
-    }
+    character_runtime_names.deinit();
 }
 
 pub export fn avocado_extension_init(

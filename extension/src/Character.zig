@@ -232,6 +232,7 @@ const MovementUpdate = struct {
 };
 
 object: godot.c.GDExtensionObjectPtr,
+
 names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
 animation_playback: ?AnimationNodeStateMachinePlayback = null,
