@@ -6,6 +6,7 @@ const Node3D = godot.generated.classes.Node3D;
 const Mesh = godot.generated.classes.Mesh;
 const MeshInstance3D = godot.generated.classes.MeshInstance3D;
 const ArrayMesh = godot.generated.classes.ArrayMesh;
+const Vector2 = godot.Vector2;
 const Vector3 = godot.Vector3;
 
 const util = @import("util/root.zig");
@@ -15,6 +16,27 @@ const Self = @This();
 
 const MAX_SAMPLES: usize = 12;
 const MAX_VERTICES: usize = (MAX_SAMPLES - 1) * 6;
+const TRAIL_UVS = createTrailUvs();
+
+fn createTrailUvs() [MAX_VERTICES]Vector2 {
+    var result = [_]Vector2{.{}} ** MAX_VERTICES;
+    const segment_count: f32 = @floatFromInt(MAX_SAMPLES - 1);
+
+    for (0..MAX_SAMPLES - 1) |i| {
+        const vertex_i = i * 6;
+        const uv_start: f32 = @as(f32, @floatFromInt(i)) / segment_count;
+        const uv_end: f32 = @as(f32, @floatFromInt(i + 1)) / segment_count;
+
+        result[vertex_i + 0] = .{ .x = uv_start, .y = 0.0 };
+        result[vertex_i + 1] = .{ .x = uv_start, .y = 1.0 };
+        result[vertex_i + 2] = .{ .x = uv_end, .y = 0.0 };
+        result[vertex_i + 3] = .{ .x = uv_end, .y = 0.0 };
+        result[vertex_i + 4] = .{ .x = uv_start, .y = 1.0 };
+        result[vertex_i + 5] = .{ .x = uv_end, .y = 1.0 };
+    }
+
+    return result;
+}
 
 const Sample = struct {
     base: Vector3,
@@ -110,9 +132,13 @@ fn createTrailSurface(self: *Self) void {
     var packed_vertices = godot.PackedVector3Array.fromSlice(self.vertices[0..]);
     defer packed_vertices.destroy();
 
+    var packed_uvs = godot.PackedVector2Array.fromSlice(TRAIL_UVS[0..]);
+    defer packed_uvs.destroy();
+
     var arrays = util.createMeshArray();
     defer arrays.destroy();
     arrays.setPackedVector3Array(.vertex, &packed_vertices);
+    arrays.setPackedVector2Array(.tex_uv, &packed_uvs);
 
     var blend_shapes = util.createEmptyArray();
     defer blend_shapes.destroy();

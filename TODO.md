@@ -1,6 +1,9 @@
 # TODO
 ## Features
-- [ ] Tweening / hitstop / juiciness / squash and stretch
+- [ ] Sword trail
+    - [x] Mesh
+    - [ ] Shader
+    - [ ] Only show during swing
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
 - [ ] HP / dmg

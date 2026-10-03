@@ -1,20 +1,18 @@
 [gd_scene format=3 uid="uid://brifue4m3o5dp"]
 
 [ext_resource type="ArrayMesh" uid="uid://dh052ke8c50xy" path="res://assets/weapons/Claymore.obj" id="1_74bdg"]
+[ext_resource type="Shader" path="res://sword_trail.gdshader" id="2_trail"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_hvteh"]
 size = Vector3(1, 4.375, 0.22363281)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_trail"]
-transparency = 1
-shading_mode = 0
-cull_mode = 2
-albedo_color = Color(0.3, 0.8, 1, 0.55)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_trail"]
+shader = ExtResource("2_trail")
 
 [node name="Sword" type="Sword" unique_id=1272582638]
 
 [node name="SwingTrail" type="MeshInstance3D" parent="." unique_id=109830068]
-material_override = SubResource("StandardMaterial3D_trail")
+material_override = SubResource("ShaderMaterial_trail")
 cast_shadow = 0
 
 [node name="Model" type="Node3D" parent="." unique_id=1975655602]
