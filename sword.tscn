@@ -2,17 +2,58 @@
 
 [ext_resource type="ArrayMesh" uid="uid://dh052ke8c50xy" path="res://assets/weapons/Claymore.obj" id="1_74bdg"]
 [ext_resource type="Shader" path="res://sword_trail.gdshader" id="2_trail"]
+[ext_resource type="Shader" path="res://sword_trail_core.gdshader" id="3_core"]
+[ext_resource type="Texture2D" path="res://assets/effects/sword_flame_mask.png" id="4_mask"]
+[ext_resource type="Texture2D" path="res://assets/effects/sword_ember.png" id="5_ember"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_hvteh"]
 size = Vector3(1, 4.375, 0.22363281)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_trail"]
 shader = ExtResource("2_trail")
+shader_parameter/flame_mask = ExtResource("4_mask")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_core"]
+render_priority = 1
+shader = ExtResource("3_core")
+shader_parameter/flame_mask = ExtResource("4_mask")
+
+[sub_resource type="Gradient" id="Gradient_ember"]
+offsets = PackedFloat32Array(0, 0.3, 1)
+colors = PackedColorArray(1, 0.8, 0.25, 1, 1, 0.32, 0.02, 0.7, 0.4, 0.025, 0.005, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_ember"]
+gradient = SubResource("Gradient_ember")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ember"]
+emission_shape = 3
+emission_box_extents = Vector3(0.1, 1.5, 0.1)
+spread = 80.0
+initial_velocity_min = 0.25
+initial_velocity_max = 0.7
+gravity = Vector3(0, 0.25, 0)
+color_ramp = SubResource("GradientTexture1D_ember")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ember"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+billboard_mode = 1
+albedo_texture = ExtResource("5_ember")
+
+[sub_resource type="QuadMesh" id="QuadMesh_ember"]
+material = SubResource("StandardMaterial3D_ember")
+size = Vector2(0.085, 0.085)
 
 [node name="Sword" type="Sword" unique_id=1272582638]
 
 [node name="SwingTrail" type="MeshInstance3D" parent="." unique_id=109830068]
 material_override = SubResource("ShaderMaterial_trail")
+cast_shadow = 0
+
+[node name="SwingTrailCore" type="MeshInstance3D" parent="."]
+material_override = SubResource("ShaderMaterial_core")
 cast_shadow = 0
 
 [node name="Model" type="Node3D" parent="." unique_id=1975655602]
@@ -32,3 +73,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9023438, 0)
 
 [node name="BladeTip" type="Marker3D" parent="Model" unique_id=1861116923]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.264853, 0)
+
+[node name="Embers" type="GPUParticles3D" parent="Model"]
+position = Vector3(0, 4, 0)
+amount = 12
+lifetime = 0.22
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_ember")
+draw_pass_1 = SubResource("QuadMesh_ember")

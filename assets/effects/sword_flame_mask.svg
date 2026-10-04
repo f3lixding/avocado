@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="256" viewBox="0 0 1024 256">
+  <!-- One continuous slash: U=0 is the fading tail; U=1 meets the blade. -->
+  <defs>
+    <linearGradient id="length" x1="0" y1="0" x2="1" y2="0" objectBoundingBox="true">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.15" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="0.36" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.73" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1" objectBoundingBox="true">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="0.15" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.38" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.63" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.88" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <mask id="feather">
+      <path fill="url(#length)" d="M 8,128 C 58,127 83,116 125,123 C 158,117 174,85 192,80 C 183,109 199,113 235,116 C 267,118 286,91 304,62 C 305,103 335,113 374,108 C 408,105 436,74 451,57 C 442,100 461,104 500,104 C 546,102 566,63 590,42 C 575,88 608,105 642,97 C 682,91 712,67 737,58 C 726,85 757,98 791,88 C 839,76 874,57 890,43 C 889,81 945,89 1024,72 L 1024,202 C 972,190 933,191 906,212 C 908,181 868,174 827,186 C 790,198 757,220 736,230 C 745,194 701,182 666,187 C 625,192 610,223 585,240 C 592,194 558,186 528,187 C 478,189 453,220 425,232 C 433,192 402,181 372,183 C 331,184 312,210 291,217 C 292,183 263,177 232,174 C 193,170 173,185 156,197 C 162,166 127,150 96,145 C 57,137 33,133 8,128 Z"/>
+    </mask>
+  </defs>
+  <path fill="url(#edge)" mask="url(#feather)" d="M 0,0 H 1024 V 256 H 0 Z"/>
+</svg>

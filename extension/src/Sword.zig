@@ -49,6 +49,7 @@ pub const RuntimeNames = struct {
     blade_base_path: godot.NodePath,
     blade_tip_path: godot.NodePath,
     trail_path: godot.NodePath,
+    trail_core_path: godot.NodePath,
 
     pub fn init() RuntimeNames {
         return .{
@@ -57,6 +58,7 @@ pub const RuntimeNames = struct {
             .blade_base_path = godot.api.godot.nodePath("Model/BladeBase"),
             .blade_tip_path = godot.api.godot.nodePath("Model/BladeTip"),
             .trail_path = godot.api.godot.nodePath("SwingTrail"),
+            .trail_core_path = godot.api.godot.nodePath("SwingTrailCore"),
         };
     }
 
@@ -66,6 +68,7 @@ pub const RuntimeNames = struct {
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.blade_base_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.blade_tip_path);
         godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.trail_path);
+        godot.api.godot.destroy(godot.c.GDEXTENSION_VARIANT_TYPE_NODE_PATH, &self.trail_core_path);
     }
 };
 
@@ -101,8 +104,9 @@ pub fn ready(self: *Self) callconv(.c) void {
     const base_node = node.get_node(self.names.blade_base_path);
     const tip_node = node.get_node(self.names.blade_tip_path);
     const trail_node = node.get_node(self.names.trail_path);
+    const core_node = node.get_node(self.names.trail_core_path);
 
-    if (base_node.isNull() or tip_node.isNull() or trail_node.isNull()) {
+    if (base_node.isNull() or tip_node.isNull() or trail_node.isNull() or core_node.isNull()) {
         const message = "Sword trail nodes are missing";
         util.log(message);
         @panic(message);
@@ -112,15 +116,18 @@ pub fn ready(self: *Self) callconv(.c) void {
     self.blade_tip = Node3D.init(tip_node.asObject().ptr);
 
     const trail_visual = MeshInstance3D.init(trail_node.asObject().ptr);
-    const trail_transform = Node3D.init(trail_node.asObject().ptr);
+    const core_visual = MeshInstance3D.init(core_node.asObject().ptr);
     const mesh = util.createArrayMesh();
 
     trail_visual.set_mesh(Mesh.init(mesh.asObject().ptr));
+    core_visual.set_mesh(Mesh.init(mesh.asObject().ptr));
 
-    // Samples and vertices are in world space, so the visual must not inherit
-    // the sword transform and apply it a second time.
-    trail_transform.set_as_top_level(true);
-    trail_transform.set_identity();
+    // Both layers share world-space vertices. Ignore the sword's transform.
+    for ([_]godot.c.GDExtensionObjectPtr{ trail_node.asObject().ptr, core_node.asObject().ptr }) |visual_node| {
+        const transform = Node3D.init(visual_node);
+        transform.set_as_top_level(true);
+        transform.set_identity();
+    }
 
     self.trail_mesh = mesh;
     self.createTrailSurface();
