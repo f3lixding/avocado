@@ -2,7 +2,7 @@
 ## Features
 - [ ] Sword trail
     - [x] Mesh
-    - [ ] Shader
+    - [x] Shader
     - [ ] Only show during swing
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment

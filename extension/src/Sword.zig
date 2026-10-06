@@ -73,6 +73,8 @@ pub const RuntimeNames = struct {
 };
 
 object: godot.c.GDExtensionObjectPtr,
+show_trail: bool = false,
+since_last_eviction: f64 = 0.0,
 names: *RuntimeNames,
 blade_base: ?Node3D = null,
 blade_tip: ?Node3D = null,
@@ -169,7 +171,22 @@ fn createTrailSurface(self: *Self) void {
     );
 }
 
-pub fn process(self: *Self, _: f64) callconv(.c) void {
+pub fn process(self: *Self, delta: f64) callconv(.c) void {
+    const EVICTION_THRESHOLD: f64 = 0.25;
+
+    // TODO: this might look really jarring. we should probably do this on the shader level
+    if (!self.show_trail) {
+        if (self.since_last_eviction > EVICTION_THRESHOLD and self.sample_count > 0) {
+            self.since_last_eviction = 0.0;
+            self.evictSample();
+        } else {
+            self.since_last_eviction += delta;
+        }
+
+        self.updateTrail();
+        return;
+    }
+
     const blade_base = self.blade_base orelse return;
     const blade_tip = self.blade_tip orelse return;
 
@@ -187,12 +204,15 @@ fn pushSample(self: *Self, sample: Sample) void {
         return;
     }
 
-    std.mem.copyForwards(
-        Sample,
+    @memmove(
         self.samples[0 .. MAX_SAMPLES - 1],
         self.samples[1..MAX_SAMPLES],
     );
     self.samples[MAX_SAMPLES - 1] = sample;
+}
+
+fn evictSample(self: *Self) void {
+    self.sample_count -= 1;
 }
 
 fn updateTrail(self: *Self) void {
