@@ -2,6 +2,7 @@ const std = @import("std");
 const godot = @import("godot_zig");
 
 const SpineYawModifier = @import("SpineYawModifier.zig");
+const Sword = @import("Sword.zig");
 
 const CharacterBody3D = godot.generated.classes.CharacterBody3D;
 const CollisionObject3D = godot.generated.classes.CollisionObject3D;
@@ -236,7 +237,6 @@ object: godot.c.GDExtensionObjectPtr,
 names: *RuntimeNames,
 animation_tree: ?AnimationTree = null,
 animation_playback: ?AnimationNodeStateMachinePlayback = null,
-sword: ?Node3D = null,
 sword_equipped_position: ?Node3D = null,
 sword_sheathed_position: ?Node3D = null,
 was_sprinting: bool = false,
@@ -280,6 +280,10 @@ look_yaw: f64 = 0.0,
 body_yaw: f64 = 0.0,
 aligning: bool = false,
 spine_modifier: ?*SpineYawModifier = null,
+
+// This is mainly here for swing trail
+// Otherwise we could easily just take note of the Node
+sword: ?*Sword = null,
 
 local_input_enabled: bool = false,
 
@@ -416,7 +420,20 @@ pub fn ready(self: *Self) callconv(.c) void {
     const sword_equipped_position_node = node.get_node(self.names.sword_equipped_position_path);
     const sword_sheathed_position_node = node.get_node(self.names.sword_sheathed_position_path);
     if (!sword_node.isNull() and !sword_equipped_position_node.isNull() and !sword_sheathed_position_node.isNull()) {
-        self.sword = Node3D.init(sword_node.asObject().ptr);
+        self.sword = blk: {
+            const binding = godot.api.godot.object_get_instance_binding.?(
+                sword_node.asObject().ptr,
+                godot.api.godot.library,
+                &godot.class.BindingCallbacks,
+            );
+            if (binding) |raw| {
+                break :blk @ptrCast(@alignCast(raw));
+            } else {
+                const msg = "Sword ptr is null";
+                util.log(msg);
+                @panic(msg);
+            }
+        };
         self.sword_equipped_position = Node3D.init(sword_equipped_position_node.asObject().ptr);
         self.sword_sheathed_position = Node3D.init(sword_sheathed_position_node.asObject().ptr);
     } else {
@@ -722,7 +739,8 @@ fn updateActionState(self: *Self, delta: f64) void {
             if (!unsheathing.weapon_attached and unsheathing.elapsed >= UNSHEATHE_HANDOFF_TIME) {
                 if (self.sword) |sword| {
                     if (self.sword_equipped_position) |position| {
-                        attachWeapon(sword, position);
+                        const sword_node = Node3D.init(sword.object);
+                        attachWeapon(sword_node, position);
                         unsheathing.weapon_attached = true;
                     }
                 }
@@ -737,6 +755,7 @@ fn updateActionState(self: *Self, delta: f64) void {
 
             if (attack.elapsed > attack.duration) {
                 self.act_state = .{ .armed = .{} };
+                self.sword.?.show_trail = false;
             }
         },
         .armed => |*armed| {
@@ -752,8 +771,10 @@ fn updateActionState(self: *Self, delta: f64) void {
 
             if (sheathing.elapsed >= sheathing.duration) {
                 if (self.sword) |sword| {
-                    if (self.sword_sheathed_position) |position|
-                        attachWeapon(sword, position);
+                    if (self.sword_sheathed_position) |position| {
+                        const sword_node = Node3D.init(sword.object);
+                        attachWeapon(sword_node, position);
+                    }
                 }
                 self.act_state = .none;
             }
@@ -959,6 +980,8 @@ pub fn setAttackSequence(self: *Self, value: i64) callconv(.c) void {
         self.names.sword_attack_standing_oneshot,
         @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
     );
+
+    self.sword.?.show_trail = true;
 }
 
 pub fn setUnsheathSequence(self: *Self, value: i64) callconv(.c) void {
