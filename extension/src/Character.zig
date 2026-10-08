@@ -755,7 +755,6 @@ fn updateActionState(self: *Self, delta: f64) void {
 
             if (attack.elapsed > attack.duration) {
                 self.act_state = .{ .armed = .{} };
-                self.sword.?.show_trail = false;
             }
         },
         .armed => |*armed| {
@@ -980,8 +979,6 @@ pub fn setAttackSequence(self: *Self, value: i64) callconv(.c) void {
         self.names.sword_attack_standing_oneshot,
         @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
     );
-
-    self.sword.?.show_trail = true;
 }
 
 pub fn setUnsheathSequence(self: *Self, value: i64) callconv(.c) void {
@@ -1004,6 +1001,12 @@ pub fn setSheathSequence(self: *Self, value: i64) callconv(.c) void {
         self.names.sword_exit_oneshot,
         @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
     );
+}
+
+pub fn setTrailEnabled(self: *Self, enabled: bool) callconv(.c) void {
+    if (self.sword) |sword| {
+        sword.show_trail = enabled;
+    }
 }
 
 fn updateCameraFov(self: *Self, velocity: Vector3) void {

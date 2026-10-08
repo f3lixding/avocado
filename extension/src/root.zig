@@ -62,6 +62,13 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
         Character.getSprintExitSequence,
         Character.setSprintExitSequence,
     );
+    godot.class.registerMethod1(
+        Character,
+        "Character",
+        "set_trail_enabled",
+        .bool,
+        Character.setTrailEnabled,
+    );
 
     godot.class.NativeClass(Sword, "Node3D", "Sword").registerWithUserdata(&sword_runtime_names);
 }

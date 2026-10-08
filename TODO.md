@@ -3,7 +3,7 @@
 - [ ] Sword trail
     - [x] Mesh
     - [x] Shader
-    - [ ] Only show during swing
+    - [ ] Only show during swing (use registered method for this for when the oneshot ends)
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
 - [ ] HP / dmg
