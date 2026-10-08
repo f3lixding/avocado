@@ -172,7 +172,7 @@ fn createTrailSurface(self: *Self) void {
 }
 
 pub fn process(self: *Self, delta: f64) callconv(.c) void {
-    const EVICTION_THRESHOLD: f64 = 0.25;
+    const EVICTION_THRESHOLD: f64 = 0.05;
 
     // TODO: this might look really jarring. we should probably do this on the shader level
     if (!self.show_trail) {

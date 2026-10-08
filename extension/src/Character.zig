@@ -487,7 +487,7 @@ pub fn handleInput(self: *Self, raw_event: godot.c.GDExtensionObjectPtr) callcon
     // TODO: maybe refactor this into intent and not act on it here
     // since this is purely just visual, the action perhaps is more appropriate in process
     const angle_diff = angleDifference(self.body_yaw, self.look_yaw);
-    if (!self.aligning and @abs(angle_diff) > FEET_LOOK_YAW_CAP) {
+    if (!self.aligning and @abs(angle_diff) > FEET_LOOK_YAW_CAP and CharacterBody3D.init(self.object).is_on_floor()) {
         self.aligning = true;
 
         self.animation_tree.?.asObject().set(self.names.turn_r_oneshot, @as(i64, AnimationNodeOneShot.OneShotRequest.fade_out));
@@ -941,12 +941,12 @@ pub fn getSprintExitSequence(self: *Self) callconv(.c) i64 {
     return self.sprint_exit_sequence;
 }
 
+pub fn getRightTurnSequence(self: *Self) callconv(.c) i64 {
+    return self.turn_r_sequence;
+}
+
 pub fn setRightTurnSequence(self: *Self, value: i64) callconv(.c) void {
     if (value == self.turn_r_sequence) return;
-
-    const body = CharacterBody3D.init(self.object);
-    if (!body.is_on_floor()) return;
-
     self.turn_r_sequence = value;
 
     const tree = self.animation_tree orelse return;
@@ -956,12 +956,12 @@ pub fn setRightTurnSequence(self: *Self, value: i64) callconv(.c) void {
     );
 }
 
+pub fn getLeftTurnSequence(self: *Self) callconv(.c) i64 {
+    return self.turn_l_sequence;
+}
+
 pub fn setLeftTurnSequence(self: *Self, value: i64) callconv(.c) void {
     if (value == self.turn_l_sequence) return;
-
-    const body = CharacterBody3D.init(self.object);
-    if (!body.is_on_floor()) return;
-
     self.turn_l_sequence = value;
 
     const tree = self.animation_tree orelse return;
@@ -971,14 +971,23 @@ pub fn setLeftTurnSequence(self: *Self, value: i64) callconv(.c) void {
     );
 }
 
+pub fn getAttackSequence(self: *Self) callconv(.c) i64 {
+    return self.attack_sequence;
+}
+
 pub fn setAttackSequence(self: *Self, value: i64) callconv(.c) void {
     if (value == self.attack_sequence) return;
+    self.attack_sequence = value;
 
     const tree = self.animation_tree orelse return;
     tree.asObject().set(
         self.names.sword_attack_standing_oneshot,
         @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
     );
+}
+
+pub fn getUnsheathSequence(self: *Self) callconv(.c) i64 {
+    return self.unsheath_sequence;
 }
 
 pub fn setUnsheathSequence(self: *Self, value: i64) callconv(.c) void {
@@ -990,6 +999,10 @@ pub fn setUnsheathSequence(self: *Self, value: i64) callconv(.c) void {
         self.names.sword_enter_oneshot,
         @as(i64, AnimationNodeOneShot.OneShotRequest.fire),
     );
+}
+
+pub fn getSheathSequence(self: *Self) callconv(.c) i64 {
+    return self.sheath_sequence;
 }
 
 pub fn setSheathSequence(self: *Self, value: i64) callconv(.c) void {

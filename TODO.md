@@ -1,9 +1,6 @@
 # TODO
 ## Features
-- [ ] Sword trail
-    - [x] Mesh
-    - [x] Shader
-    - [ ] Only show during swing (use registered method for this for when the oneshot ends)
+- [ ] Set up all of the animation set and get method for rpc
 - [ ] Hit animation effects (ragdoll?)
 - [ ] Weapon / item attachment
 - [ ] HP / dmg
@@ -17,6 +14,10 @@
 ## Bugs
 
 # DONE
+- [x] Sword trail
+    - [x] Mesh
+    - [x] Shader
+    - [x] Only show during swing (use registered method for this for when the oneshot ends)
 - [x] Add another oneshot with a different filter for when character is moving
 - [x] Swing animation needs to decouple from legs when there is movement input
 - [x] Swing should modify movement speed when on ground

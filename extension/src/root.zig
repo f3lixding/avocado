@@ -62,6 +62,12 @@ fn initialize(level: godot.c.GDExtensionInitializationLevel) callconv(.c) void {
         Character.getSprintExitSequence,
         Character.setSprintExitSequence,
     );
+    godot.class.registerProperty(Character, "Character", "turn_l_sequence", .int, Character.getLeftTurnSequence, Character.setLeftTurnSequence);
+    godot.class.registerProperty(Character, "Character", "turn_r_sequence", .int, Character.getRightTurnSequence, Character.setRightTurnSequence);
+    godot.class.registerProperty(Character, "Character", "attack_sequence", .int, Character.getAttackSequence, Character.setAttackSequence);
+    godot.class.registerProperty(Character, "Character", "unsheath_sequence", .int, Character.getUnsheathSequence, Character.setUnsheathSequence);
+    godot.class.registerProperty(Character, "Character", "sheath_sequence", .int, Character.getSheathSequence, Character.setSheathSequence);
+
     godot.class.registerMethod1(
         Character,
         "Character",

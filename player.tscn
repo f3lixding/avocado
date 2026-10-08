@@ -266,6 +266,21 @@ properties/6/replication_mode = 1
 properties/7/path = NodePath(".:sprint_exit_sequence")
 properties/7/spawn = true
 properties/7/replication_mode = 1
+properties/8/path = NodePath(".:turn_l_sequence")
+properties/8/spawn = true
+properties/8/replication_mode = 1
+properties/9/path = NodePath(".:turn_r_sequence")
+properties/9/spawn = true
+properties/9/replication_mode = 1
+properties/10/path = NodePath(".:attack_sequence")
+properties/10/spawn = true
+properties/10/replication_mode = 1
+properties/11/path = NodePath(".:unsheath_sequence")
+properties/11/spawn = true
+properties/11/replication_mode = 1
+properties/12/path = NodePath(".:sheath_sequence")
+properties/12/spawn = true
+properties/12/replication_mode = 1
 
 [node name="Player" type="Character" unique_id=273515039]
 
